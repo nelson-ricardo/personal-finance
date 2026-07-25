@@ -1,11 +1,12 @@
 from datetime import datetime, date
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, List
 import uuid
 
 from sqlmodel import SQLModel, Field, Relationship
 
 if TYPE_CHECKING:
     from budget_app.models.account import Account
+    from budget_app.models.ledger import Ledger
 
 # database model
 class Transaction(SQLModel, Table=True):
@@ -25,3 +26,7 @@ class Transaction(SQLModel, Table=True):
     ledger_id: uuid.UUID
 
     account: Optional["Account"] = Relationship(back_populates="transaction")
+    entries: List["Ledger"] = Relationship(
+        back_populates="transaction", 
+        cascade_delete=True
+    )
