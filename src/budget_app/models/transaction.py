@@ -1,8 +1,11 @@
 from datetime import datetime, date
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import uuid
 
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Relationship
+
+if TYPE_CHECKING:
+    from budget_app.models.account import Account
 
 # database model
 class Transaction(SQLModel, Table=True):
@@ -13,11 +16,12 @@ class Transaction(SQLModel, Table=True):
         nullable=False
     )
     merchant: str
-    # TODO: make a connection with the account table
-    payment_method_id: uuid.UUID
+    payment_method_id: uuid.UUID = Field(foreign_key="account.id")
     logged_date: date = Field(default_factory=datetime.today)
     posted_date: Optional[date] = Field(default=None)
     note: Optional[str] = Field(default=None)
     is_reconciled: Optional[bool] = Field(default=False)
     # TODO: make a connection with the ledger table
     ledger_id: uuid.UUID
+
+    account: Optional["Account"] = Relationship(back_populates="transaction")

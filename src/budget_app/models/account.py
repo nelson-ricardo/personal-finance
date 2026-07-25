@@ -1,11 +1,14 @@
-from typing import Optional
+from typing import Optional, TYPE_CHECKING, List
 from decimal import Decimal
 from datetime import date
 from enum import Enum
 import uuid
 
-from sqlmodel import SQLModel, Field, Column
+from sqlmodel import SQLModel, Field, Column, Relationship
 from sqlalchemy import Numeric, Enum as SAEnum
+
+if TYPE_CHECKING:
+    from budget_app.models.transaction import Transaction
 
 class AccountType(str, Enum):
     CASH = "cash"
@@ -44,3 +47,5 @@ class Account(SQLModel, Table=True):
         sa_column=Column(Numeric(precision=14, scale=2))
     )
     due_date: Optional[date] = Field(default=None, default_factory=date.today)
+
+    transactions: List["Transaction"] = Relationship(back_populates="account")
