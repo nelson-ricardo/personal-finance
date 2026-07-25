@@ -6,7 +6,7 @@ from sqlmodel import SQLModel, Field, Relationship
 if TYPE_CHECKING:
     from budget_app.models.ledger import Ledger
 
-class Envelope(SQLModel, Table=True):
+class Envelope(SQLModel, table=True):
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
         primary_key=True,

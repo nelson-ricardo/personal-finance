@@ -12,10 +12,10 @@ if TYPE_CHECKING:
 
 class AccountType(str, Enum):
     CASH = "cash"
-    CREDIT_CARD = "credit credit"
+    CREDIT_CARD = "credit_credit"
     LOAN = "loan"
 
-class Account(SQLModel, Table=True):
+class Account(SQLModel, table=True):
     id: uuid.UUID = Field(
         primary_key=True,
         nullable=False,
@@ -46,6 +46,6 @@ class Account(SQLModel, Table=True):
         default=Decimal("0.00"),
         sa_column=Column(Numeric(precision=14, scale=2))
     )
-    due_date: Optional[date] = Field(default=None, default_factory=date.today)
+    due_date: Optional[date] = Field(default=None)
 
     transactions: List["Transaction"] = Relationship(back_populates="account")

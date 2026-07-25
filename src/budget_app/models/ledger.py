@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from budget_app.models.envelope import Envelope
 
 
-class Ledger(SQLModel, Table=True):
+class Ledger(SQLModel, table=True):
     id: uuid.UUID = Field(
         primary_key=True,
         index=True,
@@ -21,11 +21,11 @@ class Ledger(SQLModel, Table=True):
         foreign_key="transaction.id",
         ondelete="CASCADE"
     )
-    envelope_id: uuid.UUID = Field(foreign_key="envelop.id")
+    envelope_id: uuid.UUID = Field(foreign_key="envelope.id")
     amount: Decimal = Field(
         default=Decimal("0.00"),
         sa_column= Column(Numeric(precision=14, scale=2), nullable=False)
     )
 
     transaction: Optional["Transaction"] = Relationship(back_populates="ledger")
-    envelope: Optional["Envelope"] = Relationship(back_populates="ledger")
+    envelope: Optional["Envelope"] = Relationship(back_populates="entires")
