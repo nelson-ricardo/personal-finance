@@ -15,7 +15,7 @@ class Envelope(SQLModel, table=True):
         index=True
     )
     name: str
-    note: str
+    note: Optional[str] = Field(default=None)
     is_active: bool = Field(default=True)
 
     account: Optional["Account"] = Relationship(back_populates="envelope",

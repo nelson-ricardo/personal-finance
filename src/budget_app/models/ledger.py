@@ -27,5 +27,5 @@ class Ledger(SQLModel, table=True):
         sa_column= Column(Numeric(precision=14, scale=2), nullable=False)
     )
 
-    transaction: Optional["Transaction"] = Relationship(back_populates="ledger")
-    envelope: Optional["Envelope"] = Relationship(back_populates="entires")
+    transaction: Optional["Transaction"] = Relationship(back_populates="entries")
+    envelope: Optional["Envelope"] = Relationship(back_populates="ledger_entries")

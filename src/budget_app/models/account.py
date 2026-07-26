@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 class AccountType(str, Enum):
     CASH = "cash"
-    CREDIT_CARD = "credit_credit"
+    CREDIT_CARD = "credit_card"
     LOAN = "loan"
 
 class Account(SQLModel, table=True):
@@ -29,7 +29,10 @@ class Account(SQLModel, table=True):
         sa_column=Column(Numeric(precision=14, scale=2), nullable=False)
     )
     account_type: AccountType = Field(
-        sa_column_kwargs={"type_": SAEnum(AccountType, name="account_type_enum")}
+        sa_column=Column(
+            SAEnum(AccountType, name="account_type_enum"),
+            nullable=False
+        )
     )
     """
     Fields under here are only used when an account is either a loan or a 
