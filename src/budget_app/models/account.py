@@ -9,6 +9,7 @@ from sqlalchemy import Numeric, Enum as SAEnum
 
 if TYPE_CHECKING:
     from budget_app.models.transaction import Transaction
+    from budget_app.models.envelope import Envelope
 
 class AccountType(str, Enum):
     CASH = "cash"
@@ -42,10 +43,16 @@ class Account(SQLModel, table=True):
         default=None,
         sa_column=Column(Numeric(precision=14, scale=2))
     )
-    monthly_payment: Decimal = Field(
+    monthly_payment: Optional[Decimal] = Field(
         default=Decimal("0.00"),
         sa_column=Column(Numeric(precision=14, scale=2))
     )
     due_date: Optional[date] = Field(default=None)
+    envelope_id: Optional[uuid.UUID] = Field(
+        default=None, 
+        foreign_key="envelope.id",
+        sa_column_kwargs={"unique": True}
+    )
 
+    envelope: Optional["Envelope"] = Relationship(back_populates="account")
     transactions: List["Transaction"] = Relationship(back_populates="account")
