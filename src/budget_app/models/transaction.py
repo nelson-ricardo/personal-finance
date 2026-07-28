@@ -1,6 +1,5 @@
 from datetime import date
 from typing import Optional, TYPE_CHECKING, List
-import uuid
 
 from sqlmodel import SQLModel, Field, Relationship
 
@@ -10,14 +9,9 @@ if TYPE_CHECKING:
 
 # database model
 class Transaction(SQLModel, table=True):
-    id: uuid.UUID = Field(
-        default_factory=uuid.uuid4,
-        primary_key=True,
-        index=True,
-        nullable=False
-    )
+    id: Optional[int] = Field(default=None, primary_key=True)
     merchant: str
-    payment_method_id: uuid.UUID = Field(foreign_key="account.id")
+    payment_method_id: int = Field(foreign_key="account.id")
     logged_date: date = Field(default_factory=date.today)
     posted_date: Optional[date] = Field(default=None)
     note: Optional[str] = Field(default=None)

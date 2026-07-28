@@ -2,7 +2,6 @@ from typing import Optional, TYPE_CHECKING, List
 from decimal import Decimal
 from datetime import date
 from enum import Enum
-import uuid
 
 from sqlmodel import SQLModel, Field, Column, Relationship
 from sqlalchemy import Numeric, Enum as SAEnum
@@ -17,12 +16,7 @@ class AccountType(str, Enum):
     LOAN = "loan"
 
 class Account(SQLModel, table=True):
-    id: uuid.UUID = Field(
-        primary_key=True,
-        nullable=False,
-        index=True,
-        default_factory=uuid.uuid4
-    )
+    id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     current_balance: Decimal = Field(
         default=Decimal("0.00"),
@@ -51,11 +45,7 @@ class Account(SQLModel, table=True):
         sa_column=Column(Numeric(precision=14, scale=2))
     )
     due_date: Optional[date] = Field(default=None)
-    envelope_id: Optional[uuid.UUID] = Field(
-        default=None, 
-        foreign_key="envelope.id",
-        sa_column_kwargs={"unique": True}
-    )
+    envelope_id: Optional[int] = Field(default=None, foreign_key="envelope.id")
 
     envelope: Optional["Envelope"] = Relationship(back_populates="account")
     transactions: List["Transaction"] = Relationship(back_populates="account")
