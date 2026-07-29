@@ -13,7 +13,7 @@ class AccountType(str, Enum):
     LOAN = "loan"
 
 class AccountBase(SQLModel):
-    name: str
+    name: str = Field(unique=True)
     current_balance: Decimal = Field(
             default=Decimal("0.00"),
             sa_column=Column(Numeric(precision=14, scale=2), nullable=False)
