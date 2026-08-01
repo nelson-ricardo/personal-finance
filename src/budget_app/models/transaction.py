@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 class Transaction(TransactionBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    account: Optional["Account"] = Relationship(back_populates="transactions")
+    account: "Account" = Relationship(back_populates="transactions")
     entries: List["Ledger"] = Relationship(
         back_populates="transaction", 
         cascade_delete=True

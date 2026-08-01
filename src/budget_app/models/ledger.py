@@ -9,9 +9,11 @@ if TYPE_CHECKING:
 
 class Ledger(LedgerBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    transaction_id: int = Field(
+    transaction_id: Optional[int] = Field(
         foreign_key="transaction.id",
-        ondelete="CASCADE"
+        ondelete="CASCADE",
+        nullable=False,
+        default=None
     )
     envelope_id: int = Field(foreign_key="envelope.id")
     
