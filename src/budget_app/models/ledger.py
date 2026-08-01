@@ -15,7 +15,7 @@ class Ledger(LedgerBase, table=True):
         nullable=False,
         default=None
     )
-    envelope_id: int = Field(foreign_key="envelope.id")
+    envelope_id: Optional[int] = Field(default=None, foreign_key="envelope.id", nullable=False)
     
 
     transaction: Optional["Transaction"] = Relationship(back_populates="entries")
