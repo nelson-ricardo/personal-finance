@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 # database model
 class Transaction(TransactionBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    payment_method_id: Optional[int] = Field(default=None, foreign_key="account.id", nullable=False)
 
     account: "Account" = Relationship(back_populates="transactions")
     entries: List["Ledger"] = Relationship(
