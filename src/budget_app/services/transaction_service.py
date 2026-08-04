@@ -5,10 +5,17 @@ from sqlmodel import Session
 from budget_app.schemas.transaction import TransactionRequest
 from budget_app.models.account import Account
 from budget_app.schemas.account import AccountType
+from budget_app.schemas.ledger import LedgerRequest
 from budget_app.repositories import account_repo, envelope_repo, transaction_repo, ledger_repo
 
-
 def add_reg_transaction(session: Session, transaction: TransactionRequest):
+    """
+        Adds a regular transaction and adds the corresponding entries. 
+        If a credit card was used it will add the total to the 'credit card payment'
+        envelope.\n
+        session: object holding the database session
+        transaction: TransactionRequest
+    """
     # check if we have a valid payment method
     account_used: Account | None = account_repo.get_account_by_name(session, transaction.payment_method_name)
 
@@ -41,9 +48,16 @@ def add_reg_transaction(session: Session, transaction: TransactionRequest):
     if account_used.account_type is AccountType.CASH:
         # deduct from cash balance
         account_used.current_balance -= abs(total_transaction)
+        session.add(account_used)
     elif account_used.account_type is AccountType.CREDIT_CARD:
-        pass
-        # here is the case where we deduct from the envelope and we add to the cc payment envelope
+        # here we add the total to the credit card payment envelope if cc was used
+        cc_payment_entry = ledger_repo.add_ledger_entry(
+            session, 
+            LedgerRequest(amount=abs(total_transaction), envelope_name="credit card payment")
+            )
+        cc_pay_envelope = envelope_repo.get_envelope_by_name(session, "Credit Card Payment")
+        cc_payment_entry.envelope = cc_pay_envelope
+        master_transaction.entries.append(cc_payment_entry)
     
     session.commit()
     session.refresh(master_transaction)
