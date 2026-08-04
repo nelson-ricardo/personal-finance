@@ -26,7 +26,7 @@ def ensure_test_database_exists(db_url: str) -> None:
 
     with admin_engine.connect() as conn:
         result = conn.execute(
-            text("SELET 1 FROM pg_database WHERE datname = :dbname"),
+            text("SELECT 1 FROM pg_database WHERE datname = :dbname"),
             {"dbname": db_name}
         )
         if not result.scalar():
