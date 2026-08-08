@@ -1,4 +1,5 @@
 from budget_app.models.envelope import Envelope
+from budget_app.schemas.envelope import EnvelopeBase
 
 from sqlmodel import Session, select
 
@@ -7,3 +8,8 @@ def get_envelope_by_name(session: Session, envelope_name: str) -> Envelope | Non
     result = session.exec(stmt)
     ret_envelope = result.one_or_none()
     return ret_envelope
+
+def create_envelope(session: Session, new_envelope: EnvelopeBase) -> Envelope:
+    new_envelope = Envelope.model_validate(new_envelope)
+    session.add(new_envelope)
+    return new_envelope
