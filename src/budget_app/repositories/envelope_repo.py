@@ -1,7 +1,10 @@
+from decimal import Decimal
+
 from budget_app.models.envelope import Envelope
+from budget_app.models.ledger import Ledger
 from budget_app.schemas.envelope import EnvelopeBase
 
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 
 def get_envelope_by_name(session: Session, envelope_name: str) -> Envelope | None:
     stmt = select(Envelope).where(Envelope.name == envelope_name)
@@ -13,3 +16,11 @@ def create_envelope(session: Session, new_envelope: EnvelopeBase) -> Envelope:
     new_envelope = Envelope.model_validate(new_envelope)
     session.add(new_envelope)
     return new_envelope
+
+def get_balance_for_envelope(session: Session, cur_envelope: Envelope) -> Decimal:
+    statement = select(
+        func.sum(Ledger.amount)
+    ).where(Ledger.envelope_id == cur_envelope.id)
+
+    result = session.exec(statement).one()
+    return result
