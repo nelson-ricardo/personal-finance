@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-def test_add_reg_transaction_single_entry_cash():
+def test_add_reg_transaction_single_entry_cash(session):
     pass
 
 def test_add_reg_transaction_mult_entry_cash():
