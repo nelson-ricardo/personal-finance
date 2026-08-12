@@ -1,11 +1,12 @@
-from typing import Optional, TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlmodel import Field, Relationship
+
 from budget_app.schemas.account import AccountBase
 
 if TYPE_CHECKING:
-    from budget_app.models.transaction import Transaction
     from budget_app.models.envelope import Envelope
+    from budget_app.models.transaction import Transaction
 
 
 class Account(AccountBase, table=True):

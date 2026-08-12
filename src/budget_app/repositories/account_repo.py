@@ -1,12 +1,14 @@
+from sqlmodel import Session, select
+
 from budget_app.models.account import Account
 from budget_app.schemas.account import AccountBase
 
-from sqlmodel import Session, select
 
 def get_account_by_name(session: Session, account_name: str) -> Account | None:
     stmt = select(Account).where(Account.name == account_name)
     ret_account = session.exec(stmt).one_or_none()
     return ret_account
+
 
 def create_account(session: Session, new_account: AccountBase) -> Account:
     account_entry = Account.model_validate(new_account)
