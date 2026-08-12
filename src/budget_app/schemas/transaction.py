@@ -1,10 +1,17 @@
 from datetime import date
-from typing import Optional, List, Dict
-from decimal import Decimal
+from enum import Enum
+from typing import List, Optional
 
-from sqlmodel import SQLModel, Field
+from sqlmodel import Field, SQLModel
 
 from budget_app.schemas import ledger
+
+
+class TransactionType(str, Enum):
+    INCOME = "INCOME"
+    EXPENSE = "EXPENSE"
+    TRANSFER = "TRANSFER"
+
 
 class TransactionBase(SQLModel):
     merchant: str
@@ -13,16 +20,19 @@ class TransactionBase(SQLModel):
     note: Optional[str] = Field(default=None)
     is_reconciled: Optional[bool] = Field(default=False)
 
+
 class TransactionRequest(TransactionBase):
     """
-        - is_financed: financed transaction, does not deduct from its assigned
-        envelope but goes to the financed envelope.
-        - term: number of monthly payments if it is financed
-        - payment_method_name: used to match to the payment_method_id
-        - ledger_entries: list of KV pairs with the envelope name and amount
-        deducted
+    - is_financed: financed transaction, does not deduct from its assigned
+    envelope but goes to the financed envelope.
+    - term: number of monthly payments if it is financed
+    - payment_method_name: used to match to the payment_method_id
+    - ledger_entries: list of KV pairs with the envelope name and amount
+    deducted
     """
-    is_financed: bool 
+
+    is_financed: bool
     term: int | None = None
-    payment_method_name: str 
+    payment_method_name: str
+    transaction_type: TransactionType
     ledger_entries: List[ledger.LedgerRequest]
