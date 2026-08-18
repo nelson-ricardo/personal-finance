@@ -1,8 +1,8 @@
 from sqlmodel import Session
 
-from budget_app.db.engine import engine
+from budget_app.db import engine
 from budget_app.repositories import account_repo, envelope_repo
-from budget_app.schemas import account, envelope
+from budget_app.schemas import AccountBase, AccountType, EnvelopeBase
 from budget_app.services import account_service, envelope_service
 
 
@@ -10,7 +10,7 @@ def init_db(session: Session) -> None:
     if not envelope_repo.get_envelope_by_name(session, "Unassigned"):
         envelope_service.create_envelope(
             session,
-            envelope.EnvelopeBase(
+            EnvelopeBase(
                 name="Unassigned", note="default bucket for money coming in"
             ),
         )
@@ -19,7 +19,7 @@ def init_db(session: Session) -> None:
     if not envelope_repo.get_envelope_by_name(session, "Credit Card Payment"):
         envelope_service.create_envelope(
             session,
-            envelope.EnvelopeBase(
+            EnvelopeBase(
                 name="Credit Card Payment",
                 note="holds money allocated to pay off credit card balance",
             ),
@@ -29,7 +29,7 @@ def init_db(session: Session) -> None:
     if not account_repo.get_account_by_name(session, "Cash"):
         account_service.create_account(
             session,
-            account.AccountBase(name="Cash", account_type=account.AccountType.CASH),
+            AccountBase(name="Cash", account_type=AccountType.CASH),
         )
         print("Created default Cash account.")
 

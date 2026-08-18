@@ -2,9 +2,8 @@ from decimal import Decimal
 
 from sqlmodel import Session, func, select
 
-from budget_app.models.envelope import Envelope
-from budget_app.models.ledger import Ledger
-from budget_app.schemas.envelope import EnvelopeBase
+from budget_app.models import Envelope, Ledger
+from budget_app.schemas import EnvelopeBase
 
 
 def get_envelope_by_name(session: Session, envelope_name: str) -> Envelope | None:

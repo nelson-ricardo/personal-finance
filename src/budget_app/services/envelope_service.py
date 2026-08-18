@@ -2,19 +2,20 @@ from decimal import Decimal
 
 from sqlmodel import Session
 
-from budget_app.models import envelope as envelope_db
-from budget_app.models.account import Account
-from budget_app.models.transaction import Transaction
-from budget_app.repositories import envelope_repo, transaction_repo
-from budget_app.repositories.account_repo import get_account_by_name
-from budget_app.schemas import envelope as envelope_schema
-from budget_app.schemas.ledger import LedgerRequest
-from budget_app.schemas.transaction import TransactionRequest, TransactionType
+from budget_app.models import Account, Envelope, Transaction
+from budget_app.repositories import account_repo, envelope_repo, transaction_repo
+from budget_app.schemas import (
+    EnvelopeBase,
+    EnvelopeTransfer,
+    LedgerRequest,
+    TransactionRequest,
+    TransactionType,
+)
 
 
 def create_envelope(
-    session: Session, envelope_info: envelope_schema.EnvelopeBase
-) -> envelope_db.Envelope:
+    session: Session, envelope_info: EnvelopeBase
+) -> Envelope:
     """
     Create a new envelope using EnvelopeBase\n
     session: Session object used to interface with the database\n
@@ -42,8 +43,8 @@ def add_to_cash(
         raise ValueError("add_to_cash error: cannot add negative amounts")
 
     # fetch the cash account and the unassigned envelope
-    cash_account: Account | None = get_account_by_name(session, "Cash")
-    unassigned_envelope: envelope_db.Envelope | None = (
+    cash_account: Account | None = account_repo.get_account_by_name(session, "Cash")
+    unassigned_envelope: Envelope | None = (
         envelope_repo.get_envelope_by_name(session, "Unassigned")
     )
 
@@ -80,7 +81,7 @@ def add_to_cash(
 
 def transfer_between_envelopes(
     session: Session, source: str, destination: str, amount: Decimal
-) -> envelope_schema.EnvelopeTransfer:
+) -> EnvelopeTransfer:
 
     if source == destination:
         raise ValueError("transfer_between_envelopes: source cannot equal destination")
@@ -88,14 +89,14 @@ def transfer_between_envelopes(
     if amount <= 0:
         raise ValueError("transfer_between_envelopes: amount cannot be 0 or negative")
     # get the source envelope and ensure it is not none
-    src_envelope: envelope_db.Envelope | None = envelope_repo.get_envelope_by_name(
+    src_envelope: Envelope | None = envelope_repo.get_envelope_by_name(
         session, source
     )
     if not src_envelope:
         raise ValueError("transfer_between_envelopes: source envelope does not exist")
 
     # get the destination envelope and ensure it is not none
-    dest_envelope: envelope_db.Envelope | None = envelope_repo.get_envelope_by_name(
+    dest_envelope: Envelope | None = envelope_repo.get_envelope_by_name(
         session, destination
     )
     if not dest_envelope:
@@ -134,7 +135,7 @@ def transfer_between_envelopes(
     session.commit()
     session.refresh(master_transaction)
 
-    return envelope_schema.EnvelopeTransfer(
+    return EnvelopeTransfer(
         source=src_envelope,
         new_balance_src=envelope_repo.get_balance_for_envelope(session, src_envelope),
         destination=dest_envelope,

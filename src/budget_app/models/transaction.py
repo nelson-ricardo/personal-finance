@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, List, Optional
 from sqlmodel import Column, Field, Relationship
 from sqlmodel import Enum as SQLEnum
 
-from budget_app.schemas.transaction import TransactionBase, TransactionType
+from budget_app.schemas import TransactionBase, TransactionType
 
 if TYPE_CHECKING:
     from budget_app.models.account import Account

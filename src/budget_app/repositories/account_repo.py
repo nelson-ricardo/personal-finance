@@ -1,7 +1,7 @@
 from sqlmodel import Session, select
 
-from budget_app.models.account import Account
-from budget_app.schemas.account import AccountBase
+from budget_app.models import Account
+from budget_app.schemas import AccountBase
 
 
 def get_account_by_name(session: Session, account_name: str) -> Account | None:

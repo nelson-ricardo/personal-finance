@@ -1,13 +1,12 @@
 from sqlmodel import Session
 
-from budget_app.models.ledger import Ledger
-from budget_app.models.transaction import Transaction
+from budget_app.models import Ledger, Transaction
 from budget_app.repositories import account_repo, envelope_repo
-from budget_app.schemas import transaction
+from budget_app.schemas import TransactionRequest
 
 
 def create_transaction(
-    session: Session, transaction_info: transaction.TransactionRequest
+    session: Session, transaction_info: TransactionRequest
 ) -> Transaction:
     # get the payment method
     account = account_repo.get_account_by_name(

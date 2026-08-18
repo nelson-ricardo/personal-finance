@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 from sqlmodel import Field, Relationship
 
-from budget_app.schemas.account import AccountBase
+from budget_app.schemas import AccountBase
 
 if TYPE_CHECKING:
     from budget_app.models.envelope import Envelope

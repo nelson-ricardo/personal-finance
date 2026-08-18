@@ -2,16 +2,14 @@ from decimal import Decimal
 
 from sqlmodel import Session
 
-from budget_app.models.account import Account
+from budget_app.models import Account
 from budget_app.repositories import (
     account_repo,
     envelope_repo,
     ledger_repo,
     transaction_repo,
 )
-from budget_app.schemas.account import AccountType
-from budget_app.schemas.ledger import LedgerRequest
-from budget_app.schemas.transaction import TransactionRequest
+from budget_app.schemas import AccountType, LedgerRequest, TransactionRequest
 
 
 def add_reg_transaction(session: Session, transaction: TransactionRequest):

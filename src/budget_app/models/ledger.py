@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlmodel import Field, Relationship
 
-from budget_app.schemas.ledger import LedgerBase
+from budget_app.schemas import LedgerBase
 
 if TYPE_CHECKING:
     from budget_app.models.envelope import Envelope
