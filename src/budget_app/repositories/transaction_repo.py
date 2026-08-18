@@ -21,6 +21,8 @@ def create_transaction(
     envelopes_by_name = {}
     for entry in transaction_info.ledger_entries:
         env = envelope_repo.get_envelope_by_name(session, entry.envelope_name)
+        if not env:
+            raise ValueError(f"Envelope {entry.envelope_name} does not exist.")
         envelopes_by_name[entry.envelope_name] = env
 
     ledger_entries_db = [
