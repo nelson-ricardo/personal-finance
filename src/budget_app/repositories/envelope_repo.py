@@ -12,11 +12,32 @@ def get_envelope_by_name(session: Session, envelope_name: str) -> Envelope | Non
     ret_envelope = result.one_or_none()
     return ret_envelope
 
-
 def create_envelope(session: Session, new_envelope: EnvelopeBase) -> Envelope:
-    new_envelope = Envelope.model_validate(new_envelope)
-    session.add(new_envelope)
-    return new_envelope
+    """
+        Strictly creates a new envelope. Checks if it exists, if it does raises
+        ValueError
+    """
+    test_env: Envelope | None = get_envelope_by_name(session, new_envelope.name)
+
+    if not test_env:
+        ret_envelope: Envelope = Envelope.model_validate(new_envelope)
+        session.add(ret_envelope)
+        return ret_envelope
+    else:
+        raise ValueError("Envelope already exists")
+
+def get_or_create_envelope(session: Session, new_envelope: EnvelopeBase) -> Envelope:
+    """
+        Checks if the envelope already exists in the system (get it by name)
+        if there is one, return that envelope instead, otherwise
+        create the envelope, add it to the session, and return it
+    """
+    ret_envelope: Envelope | None = get_envelope_by_name(session, new_envelope.name)
+    if not ret_envelope:
+        ret_envelope = Envelope.model_validate(new_envelope)
+        session.add(ret_envelope)
+
+    return ret_envelope
 
 
 def get_balance_for_envelope(session: Session, cur_envelope: Envelope) -> Decimal:

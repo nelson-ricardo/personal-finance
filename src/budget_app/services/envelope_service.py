@@ -16,11 +16,23 @@ from budget_app.schemas import (
 def create_envelope(
     session: Session, envelope_info: EnvelopeBase
 ) -> Envelope:
+    """Creates a new envelope and persists it in the database.
+
+    Args:
+        session: Active SQLModel database session.
+        envelope_info: Information for the envelope being created (name, note, is_active).
+
+    Returns:
+        The newly created and refreshed Envelope instance.
+
+    Raises:
+        ValueError: If name is empty/whitespace or an envelope with the given name already exists.
     """
-    Create a new envelope using EnvelopeBase\n
-    session: Session object used to interface with the database\n
-    envelope_info: information about the envelope being created
-    """
+    if not envelope_info.name or not envelope_info.name.strip():
+        raise ValueError("Envelope name cannot be empty")
+
+    envelope_info.name = envelope_info.name.strip()
+
     new_envelope = envelope_repo.create_envelope(session, envelope_info)
     session.commit()
     session.refresh(new_envelope)
@@ -31,12 +43,20 @@ def create_envelope(
 def add_to_cash(
     session: Session, amount: Decimal, source: str, note: str | None = None
 ) -> Transaction:
-    """
-    Function specifically to add a balance to cash and add to the
-    'Unassigned' envelope.\n
-    amount: amount of money being added to the account\n
-    source: source of the money added\n
-    note: additional information of the income\n
+    """Adds income to the Cash account balance and assigns it to the 'Unassigned' envelope.
+
+    Args:
+        session: Active SQLModel database session.
+        amount: Positive amount of income being added.
+        source: Name of the income source or merchant.
+        note: Optional note detailing the income transaction.
+
+    Returns:
+        The created master income Transaction instance.
+
+    Raises:
+        ValueError: If amount is negative.
+        RuntimeError: If default 'Cash' account or 'Unassigned' envelope do not exist.
     """
     # makes sure we are entering a valid amount in cash
     if amount < Decimal("0.00"):
@@ -61,7 +81,6 @@ def add_to_cash(
     master_tx_req: TransactionRequest = TransactionRequest(
         merchant=source,
         note=note,
-        is_financed=False,
         payment_method_name="Cash",
         transaction_type=TransactionType.INCOME,
         ledger_entries=[entry],
@@ -82,6 +101,22 @@ def add_to_cash(
 def transfer_between_envelopes(
     session: Session, source: str, destination: str, amount: Decimal
 ) -> EnvelopeTransfer:
+    """Transfers funds between two envelopes and records a transfer transaction.
+
+    Args:
+        session: Active SQLModel database session.
+        source: Name of the envelope to deduct funds from.
+        destination: Name of the envelope to receive funds.
+        amount: Positive amount of money to transfer.
+
+    Returns:
+        EnvelopeTransfer containing source/destination envelopes, updated balances,
+        and the recorded transfer Transaction instance.
+
+    Raises:
+        ValueError: If source equals destination, amount is <= 0, either envelope
+            does not exist, or the source envelope has insufficient funds.
+    """
 
     if source == destination:
         raise ValueError("transfer_between_envelopes: source cannot equal destination")
@@ -123,7 +158,6 @@ def transfer_between_envelopes(
 
     transaction_request = TransactionRequest(
         merchant=f"transfer {source} -> {destination}",
-        is_financed=False,
         payment_method_name="Cash",
         transaction_type=TransactionType.TRANSFER,
         ledger_entries=[ledger_entry_src, ledger_entry_dest],
