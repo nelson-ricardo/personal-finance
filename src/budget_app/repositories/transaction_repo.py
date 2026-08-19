@@ -35,8 +35,12 @@ def create_transaction(
     # make the final transaction and add it to the session
     transaction: Transaction = Transaction(
         merchant=transaction_info.merchant,
+        logged_date=transaction_info.logged_date,
+        posted_date=transaction_info.posted_date,
+        is_reconciled=transaction_info.is_reconciled,
         account=account,
         entries=ledger_entries_db,
+        note=transaction_info.note,
         transaction_type=transaction_info.transaction_type,
     )
 

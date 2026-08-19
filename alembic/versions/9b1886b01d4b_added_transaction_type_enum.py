@@ -21,7 +21,7 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 transaction_type_enum = postgresql.ENUM(
-    'INCOME', 'EXPENSE', 'TRANSFER', name='transactiontype'
+    'INCOME', 'EXPENSE', 'TRANSFER', 'FINANCED', name='transactiontype'
 )
 
 def upgrade() -> None:

@@ -1,6 +1,7 @@
 from datetime import date
 from enum import Enum
 from typing import List, Optional
+from decimal import Decimal
 
 from sqlmodel import Field, SQLModel
 
@@ -11,6 +12,7 @@ class TransactionType(str, Enum):
     INCOME = "INCOME"
     EXPENSE = "EXPENSE"
     TRANSFER = "TRANSFER"
+    FINANCED = "FINANCED"
 
 
 class TransactionBase(SQLModel):
@@ -23,16 +25,24 @@ class TransactionBase(SQLModel):
 
 class TransactionRequest(TransactionBase):
     """
-    - is_financed: financed transaction, does not deduct from its assigned
-    envelope but goes to the financed envelope.
-    - term: number of monthly payments if it is financed
     - payment_method_name: used to match to the payment_method_id
+    - transaction_type: INCOME, EXPENSE, TRANSFER, or FINANCED
     - ledger_entries: list of KV pairs with the envelope name and amount
     deducted
     """
 
-    is_financed: bool
-    term: int | None = None
     payment_method_name: str
     transaction_type: TransactionType
     ledger_entries: List[ledger.LedgerRequest]
+
+class FinancedTransaction(TransactionBase):
+    """
+        term: number of monthly payments
+        amount: total amount financed
+        envelope_name: [OPTIONAL] desired name for the envelope
+        payment_method_name: name of the account used
+    """
+    term: int
+    amount: Decimal
+    envelope_name: str | None
+    payment_method_name: str
