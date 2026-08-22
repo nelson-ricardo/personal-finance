@@ -12,6 +12,14 @@ def get_envelope_by_name(session: Session, envelope_name: str) -> Envelope | Non
     ret_envelope = result.one_or_none()
     return ret_envelope
 
+
+def get_envelope_by_id(session: Session, envelope_id: int) -> Envelope | None:
+    stmt = select(Envelope).where(Envelope.id == envelope_id)
+    result = session.exec(stmt)
+    ret_envelope = result.one_or_none()
+    return ret_envelope
+
+
 def create_envelope(session: Session, new_envelope: EnvelopeBase) -> Envelope:
     """
         Strictly creates a new envelope. Checks if it exists, if it does raises

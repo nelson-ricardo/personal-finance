@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from sqlmodel import Session
@@ -15,8 +16,10 @@ from budget_app.schemas import (
     LedgerRequest, 
     TransactionRequest,
     FinancedTransaction,
+    TransactionResponse,
     TransactionType
 )
+
 
 
 def add_reg_transaction(session: Session, transaction: TransactionRequest) -> Transaction:
@@ -163,3 +166,192 @@ def add_financed_transaction(session: Session, transaction: FinancedTransaction)
     session.commit()
     session.refresh(master_transaction)
     return master_transaction
+
+
+def calculate_transaction_total(transaction: Transaction) -> Decimal:
+    """Calculates the total monetary amount for a transaction.
+
+    For credit card regular expense transactions, excludes the automated balancing entry
+    transferred into the 'Credit Card Payment' envelope.
+    For financed transactions, returns the positive financed amount.
+    For transfers, returns the transferred amount.
+
+    Args:
+        transaction: Transaction instance with populated entries and account relation.
+
+    Returns:
+        The total transaction amount as a positive Decimal.
+    """
+    if not transaction.entries:
+        return Decimal("0.00")
+
+    if transaction.transaction_type == TransactionType.FINANCED:
+        return abs(transaction.entries[0].amount)
+
+    if transaction.transaction_type == TransactionType.TRANSFER:
+        return abs(transaction.entries[0].amount)
+
+    is_credit_card = (
+        transaction.account is not None
+        and transaction.account.account_type == AccountType.CREDIT_CARD
+    )
+
+    total = Decimal("0.00")
+    for entry in transaction.entries:
+        # Filter out the credit card payment balancing entry
+        if (
+            is_credit_card
+            and entry.envelope is not None
+            and entry.envelope.name == "Credit Card Payment"
+            and entry.amount > Decimal("0")
+        ):
+            continue
+        total += abs(entry.amount)
+
+    return total
+
+
+def get_transactions(
+    session: Session,
+    *,
+    limit: int | None = None,
+    envelope_id: str | int | None = None,
+    account_id: str | int | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    transaction_type: TransactionType | list[TransactionType] | str | list[str] | None = None,
+    envelope_name: str | None = None,
+    account_name: str | None = None,
+) -> list[TransactionResponse]:
+    """Fetches a set of transactions based on various filtering criteria.
+
+    Transforms transactions into Pydantic models containing the transaction total
+    (with credit card balancing entries filtered out).
+
+    Args:
+        session: Active SQLModel database session.
+        limit: Optional max number of transactions to return. Must be > 0 if specified.
+        envelope_id: Optional envelope name (str) or envelope ID (int) to filter by.
+        account_id: Optional account name (str) or account ID (int) to filter by.
+        date_from: Optional start date (inclusive). Defaults to the 3rd of the current month.
+        date_to: Optional end date (inclusive). Defaults to the 28th of the current month.
+        transaction_type: Optional transaction type(s) to filter by. By default, returns all
+            transaction types except TRANSFER (i.e. EXPENSE, INCOME, FINANCED).
+        envelope_name: Explicit alias for envelope_id when passing by name.
+        account_name: Explicit alias for account_id when passing by name.
+
+    Returns:
+        List of TransactionResponse objects.
+
+    Raises:
+        ValueError: If limit <= 0, date_from > date_to, invalid transaction_type,
+            or if the specified envelope or account does not exist.
+    """
+    today = date.today()
+    if date_from is None:
+        date_from = date(today.year, today.month, 3)
+    if date_to is None:
+        date_to = date(today.year, today.month, 28)
+
+    if date_from > date_to:
+        raise ValueError(
+            f"date_from ({date_from}) cannot be after date_to ({date_to})"
+        )
+
+    if limit is not None and limit <= 0:
+        raise ValueError("limit must be a positive integer")
+
+    # Parse and validate transaction_type filter
+    parsed_types: list[TransactionType]
+    if transaction_type is None:
+        # Default: all transaction types but transfers
+        parsed_types = [
+            TransactionType.EXPENSE,
+            TransactionType.INCOME,
+            TransactionType.FINANCED,
+        ]
+    elif isinstance(transaction_type, (list, tuple, set)):
+        parsed_types = [
+            t if isinstance(t, TransactionType) else TransactionType(str(t))
+            for t in transaction_type
+        ]
+    elif isinstance(transaction_type, TransactionType):
+        parsed_types = [transaction_type]
+    elif isinstance(transaction_type, str):
+        parsed_types = [TransactionType(transaction_type)]
+    else:
+        raise ValueError(f"Invalid transaction_type format: {transaction_type}")
+
+    # Resolve envelope filter
+    target_env = envelope_name if envelope_name is not None else envelope_id
+    resolved_env_id: int | None = None
+    if target_env is not None:
+        if isinstance(target_env, int):
+            env = envelope_repo.get_envelope_by_id(session, target_env)
+        elif isinstance(target_env, str):
+            env = envelope_repo.get_envelope_by_name(session, target_env)
+        else:
+            raise ValueError("Envelope must be specified by string name or integer ID")
+
+        if not env:
+            raise ValueError(f"Envelope '{target_env}' does not exist")
+        resolved_env_id = env.id
+
+    # Resolve account filter
+    target_acc = account_name if account_name is not None else account_id
+    resolved_acc_id: int | None = None
+    if target_acc is not None:
+        if isinstance(target_acc, int):
+            acc = account_repo.get_account_by_id(session, target_acc)
+        elif isinstance(target_acc, str):
+            acc = account_repo.get_account_by_name(session, target_acc)
+        else:
+            raise ValueError("Account must be specified by string name or integer ID")
+
+        if not acc:
+            raise ValueError(f"Account '{target_acc}' does not exist")
+        resolved_acc_id = acc.id
+
+    # Find CC payment envelope ID for balancing entry filtering
+    cc_env = envelope_repo.get_envelope_by_name(session, "Credit Card Payment")
+    cc_env_id = cc_env.id if cc_env else None
+
+    # Query the repository
+    transactions = transaction_repo.get_transactions(
+        session,
+        account_id=resolved_acc_id,
+        envelope_id=resolved_env_id,
+        date_from=date_from,
+        date_to=date_to,
+        limit=limit,
+        transaction_types=parsed_types,
+        exclude_balancing_for_envelope_id=cc_env_id,
+    )
+
+    # Convert to response models with total calculations
+    results: list[TransactionResponse] = []
+    for tx in transactions:
+        total = calculate_transaction_total(tx)
+        payment_name = tx.account.name if tx.account else ""
+        if tx.id is None or tx.payment_method_id is None:
+            continue
+        results.append(
+            TransactionResponse(
+                id=tx.id,
+                merchant=tx.merchant,
+                logged_date=tx.logged_date,
+                posted_date=tx.posted_date,
+                note=tx.note,
+                is_reconciled=tx.is_reconciled,
+                payment_method_id=tx.payment_method_id,
+                payment_method_name=payment_name,
+                transaction_type=tx.transaction_type,
+                total=total,
+            )
+        )
+
+    return results
+
+
+
+fetch_transactions = get_transactions

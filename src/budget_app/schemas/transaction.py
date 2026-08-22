@@ -46,3 +46,20 @@ class FinancedTransaction(TransactionBase):
     amount: Decimal
     envelope_name: str | None
     payment_method_name: str
+
+
+class TransactionResponse(TransactionBase):
+    """Schema representing fetched transaction with its computed total."""
+    id: int
+    payment_method_id: int
+    payment_method_name: str
+    transaction_type: TransactionType
+    total: Decimal
+
+    @property
+    def total_amount(self) -> Decimal:
+        return self.total
+
+    @property
+    def account_name(self) -> str:
+        return self.payment_method_name

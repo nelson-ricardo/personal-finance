@@ -393,3 +393,337 @@ class TestAddFinancedTransaction:
         env = envelope_repo.get_envelope_by_name(session, "Test Rounding")
         assert env is not None
         assert env.note == "33.33/mo."
+
+
+class TestGetTransactions:
+    @pytest.fixture
+    def populated_db(self, session):
+        """Sets up accounts, envelopes, and a variety of transactions across dates and types."""
+        today = date.today()
+        current_year = today.year
+        current_month = today.month
+
+        # Accounts
+        cash = get_or_create_account(session, "Cash", AccountType.CASH)
+        cash.current_balance += Decimal("5000")
+        session.add(cash)
+
+        visa = get_or_create_account(session, "Visa", AccountType.CREDIT_CARD)
+        session.add(visa)
+
+        # Envelopes
+        groceries = get_or_create_envelope(session, "Groceries")
+        fun = get_or_create_envelope(session, "Fun")
+        utilities = get_or_create_envelope(session, "Utilities")
+        cc_envelope = get_or_create_envelope(session, "Credit Card Payment")
+        unassigned = get_or_create_envelope(session, "Unassigned")
+        session.commit()
+
+        # 1. Income on 5th of system month
+        income_tx = envelope_service.add_to_cash(
+            session, amount=Decimal("1500"), source="Paycheck", note="Biweekly salary"
+        )
+        income_tx.logged_date = date(current_year, current_month, 5)
+        session.add(income_tx)
+
+        # 2. Cash split expense on 10th of system month (Walmart: $20 Fun + $20 Groceries = $40)
+        walmart_split = TransactionRequest(
+            merchant="Walmart",
+            logged_date=date(current_year, current_month, 10),
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[
+                LedgerRequest(amount=Decimal("-20"), envelope_name="Fun"),
+                LedgerRequest(amount=Decimal("-20"), envelope_name="Groceries"),
+            ],
+            note="Groceries and snacks",
+        )
+        walmart_tx = transaction_service.add_reg_transaction(session, walmart_split)
+
+        # 3. Credit Card split expense on 15th of system month (Target: $30 Groceries + $70 Fun = $100)
+        target_split = TransactionRequest(
+            merchant="Target",
+            logged_date=date(current_year, current_month, 15),
+            payment_method_name="Visa",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[
+                LedgerRequest(amount=Decimal("-30"), envelope_name="Groceries"),
+                LedgerRequest(amount=Decimal("-70"), envelope_name="Fun"),
+            ],
+            note="Home supplies & games",
+        )
+        target_tx = transaction_service.add_reg_transaction(session, target_split)
+
+        # 4. Financed transaction on 20th of system month ($1200 Apple Store)
+        financed_req = FinancedTransaction(
+            merchant="Apple Store",
+            logged_date=date(current_year, current_month, 20),
+            term=12,
+            amount=Decimal("1200"),
+            envelope_name=None,
+            payment_method_name="Visa",
+            note="MacBook Air",
+        )
+        financed_tx = transaction_service.add_financed_transaction(session, financed_req)
+
+        # 5. Envelope transfer on 22nd of system month ($50 from Fun to Utilities)
+        # Fund Unassigned first, transfer to Fun so Fun has positive balance
+        envelope_service.add_to_cash(session, Decimal("500"), "Fund Income")
+        envelope_service.assign_to_envelope(
+            session, destination="Fun", amount=Decimal("200")
+        )
+        transfer_res = envelope_service.transfer_between_envelopes(
+            session, source="Fun", destination="Utilities", amount=Decimal("50")
+        )
+        transfer_tx = transfer_res.transfer_transaction
+        transfer_tx.logged_date = date(current_year, current_month, 22)
+        session.add(transfer_tx)
+
+
+
+        # 6. Out-of-default-range transactions:
+        # Early transaction on 1st of month (before 3rd)
+        early_req = TransactionRequest(
+            merchant="Early Coffee",
+            logged_date=date(current_year, current_month, 1),
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[
+                LedgerRequest(amount=Decimal("-5"), envelope_name="Fun")
+            ],
+        )
+        early_tx = transaction_service.add_reg_transaction(session, early_req)
+
+        # Late transaction on 29th of month (after 28th)
+        late_req = TransactionRequest(
+            merchant="Late Dinner",
+            logged_date=date(current_year, current_month, 29),
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[
+                LedgerRequest(amount=Decimal("-45"), envelope_name="Fun")
+            ],
+        )
+        late_tx = transaction_service.add_reg_transaction(session, late_req)
+
+        session.commit()
+        return {
+            "cash": cash,
+            "visa": visa,
+            "groceries": groceries,
+            "fun": fun,
+            "utilities": utilities,
+            "walmart_tx": walmart_tx,
+            "target_tx": target_tx,
+            "financed_tx": financed_tx,
+            "transfer_tx": transfer_tx,
+            "income_tx": income_tx,
+            "early_tx": early_tx,
+            "late_tx": late_tx,
+        }
+
+    def test_default_fetch_filters_transfers_and_date_range(self, session, populated_db):
+        """Default fetch should exclude transfers and only return transactions between 3rd and 28th."""
+        results = transaction_service.get_transactions(session)
+
+        merchants = [tx.merchant for tx in results]
+        # In default date range (3rd to 28th):
+        # 5th (Paycheck - INCOME), 10th (Walmart - EXPENSE), 15th (Target - EXPENSE), 20th (Apple Store - FINANCED),
+        # Fund Fun (INCOME).
+        # Transfers (22nd) and out-of-range (1st, 29th) should NOT be in results.
+        assert "Walmart" in merchants
+        assert "Target" in merchants
+        assert "Apple Store" in merchants
+        assert "Paycheck" in merchants
+        assert "Early Coffee" not in merchants
+        assert "Late Dinner" not in merchants
+        assert not any(tx.transaction_type == TransactionType.TRANSFER for tx in results)
+
+    def test_split_cash_transaction_total(self, session, populated_db):
+        """Split cash transaction ($20 Fun + $20 Groceries) should report total $40."""
+        results = transaction_service.get_transactions(
+            session,
+            date_from=date(date.today().year, date.today().month, 10),
+            date_to=date(date.today().year, date.today().month, 10),
+        )
+        assert len(results) == 1
+        walmart = results[0]
+        assert walmart.merchant == "Walmart"
+        assert walmart.total == Decimal("40")
+        assert walmart.total_amount == Decimal("40")
+        assert walmart.payment_method_name == "Cash"
+
+    def test_credit_card_balancing_entry_excluded_from_total(self, session, populated_db):
+        """CC transaction ($30 + $70) should report total $100, filtering out balancing entry (+100)."""
+        results = transaction_service.get_transactions(
+            session,
+            date_from=date(date.today().year, date.today().month, 15),
+            date_to=date(date.today().year, date.today().month, 15),
+        )
+        assert len(results) == 1
+        target = results[0]
+        assert target.merchant == "Target"
+        assert target.total == Decimal("100")
+        assert target.payment_method_name == "Visa"
+
+    def test_financed_transaction_positive_total(self, session, populated_db):
+        """Financed transaction (+1200, -1200) should report positive financed total $1200."""
+        results = transaction_service.get_transactions(
+            session,
+            date_from=date(date.today().year, date.today().month, 20),
+            date_to=date(date.today().year, date.today().month, 20),
+        )
+        assert len(results) == 1
+        apple = results[0]
+        assert apple.merchant == "Apple Store"
+        assert apple.total == Decimal("1200")
+        assert apple.transaction_type == TransactionType.FINANCED
+
+    def test_filter_by_envelope_name(self, session, populated_db):
+        """Filtering by envelope name returns all transactions touching that envelope."""
+        # Both Walmart ($20) and Target ($30) used Groceries
+        results = transaction_service.get_transactions(
+            session, envelope_id="Groceries"
+        )
+        merchants = [tx.merchant for tx in results]
+        assert "Walmart" in merchants
+        assert "Target" in merchants
+        assert "Apple Store" not in merchants
+
+    def test_filter_by_envelope_id(self, session, populated_db):
+        """Filtering by integer envelope ID returns matching transactions."""
+        groceries_id = populated_db["groceries"].id
+        results = transaction_service.get_transactions(
+            session, envelope_id=groceries_id
+        )
+        merchants = [tx.merchant for tx in results]
+        assert "Walmart" in merchants
+        assert "Target" in merchants
+
+    def test_filter_by_cc_payment_envelope_excludes_balancing_entries(self, session, populated_db):
+        """Filtering by 'Credit Card Payment' envelope should NOT return regular CC expense transactions."""
+        results = transaction_service.get_transactions(
+            session, envelope_id="Credit Card Payment"
+        )
+        merchants = [tx.merchant for tx in results]
+        assert "Target" not in merchants
+
+    def test_filter_by_account_name_and_id(self, session, populated_db):
+        """Filtering by account name or ID returns only transactions using that payment method."""
+        cash_results = transaction_service.get_transactions(session, account_id="Cash")
+        assert all(tx.payment_method_name == "Cash" for tx in cash_results)
+
+        visa_id = populated_db["visa"].id
+        visa_results = transaction_service.get_transactions(session, account_id=visa_id)
+        assert all(tx.payment_method_name == "Visa" for tx in visa_results)
+        visa_merchants = [tx.merchant for tx in visa_results]
+        assert "Target" in visa_merchants
+        assert "Apple Store" in visa_merchants
+        assert "Walmart" not in visa_merchants
+
+    def test_filter_by_custom_date_range(self, session, populated_db):
+        """Passing custom date_from and date_to captures transactions including early and late ones."""
+        today = date.today()
+        all_results = transaction_service.get_transactions(
+            session,
+            date_from=date(today.year, today.month, 1),
+            date_to=date(today.year, today.month, 31 if today.month in [1, 3, 5, 7, 8, 10, 12] else 30),
+        )
+        merchants = [tx.merchant for tx in all_results]
+        assert "Early Coffee" in merchants
+        assert "Late Dinner" in merchants
+
+    def test_filter_by_limit(self, session, populated_db):
+        """Limit parameter caps the number of returned transactions."""
+        results = transaction_service.get_transactions(session, limit=2)
+        assert len(results) == 2
+
+    def test_explicit_transfer_transaction_type(self, session, populated_db):
+        """When transaction_type=TRANSFER is requested, transfers are returned."""
+        results = transaction_service.get_transactions(
+            session, transaction_type=TransactionType.TRANSFER
+        )
+        assert len(results) >= 1
+        transfer = results[0]
+        assert transfer.transaction_type == TransactionType.TRANSFER
+        assert transfer.total == Decimal("50")
+
+    def test_filter_by_multiple_transaction_types(self, session, populated_db):
+        """Passing a list of transaction types filters accurately."""
+        results = transaction_service.get_transactions(
+            session,
+            transaction_type=[TransactionType.EXPENSE, TransactionType.TRANSFER],
+        )
+        types = {tx.transaction_type for tx in results}
+        assert TransactionType.EXPENSE in types
+        assert TransactionType.TRANSFER in types
+        assert TransactionType.INCOME not in types
+
+    def test_alias_fetch_transactions(self, session, populated_db):
+        """fetch_transactions alias produces the exact same results as get_transactions."""
+        res1 = transaction_service.get_transactions(session)
+        res2 = transaction_service.fetch_transactions(session)
+        assert [r.id for r in res1] == [r.id for r in res2]
+
+    def test_invalid_limit_raises_error(self, session):
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            transaction_service.get_transactions(session, limit=0)
+
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            transaction_service.get_transactions(session, limit=-5)
+
+    def test_invalid_date_range_raises_error(self, session):
+        with pytest.raises(ValueError, match="cannot be after date_to"):
+            transaction_service.get_transactions(
+                session,
+                date_from=date(2026, 5, 20),
+                date_to=date(2026, 5, 10),
+            )
+
+    def test_nonexistent_envelope_raises_error(self, session):
+        with pytest.raises(ValueError, match="Envelope 'GhostEnvelope' does not exist"):
+            transaction_service.get_transactions(session, envelope_id="GhostEnvelope")
+
+        with pytest.raises(ValueError, match="Envelope '99999' does not exist"):
+            transaction_service.get_transactions(session, envelope_id=99999)
+
+    def test_nonexistent_account_raises_error(self, session):
+        with pytest.raises(ValueError, match="Account 'GhostAccount' does not exist"):
+            transaction_service.get_transactions(session, account_id="GhostAccount")
+
+        with pytest.raises(ValueError, match="Account '99999' does not exist"):
+            transaction_service.get_transactions(session, account_id=99999)
+
+    def test_invalid_transaction_type_raises_error(self, session):
+        with pytest.raises(ValueError):
+            transaction_service.get_transactions(session, transaction_type="INVALID_TYPE")
+
+    def test_sorting_order_descending(self, session, populated_db):
+        """Transactions should be returned in descending order by logged_date."""
+        results = transaction_service.get_transactions(
+            session,
+            date_from=date(date.today().year, date.today().month, 1),
+            date_to=date(date.today().year, date.today().month, 28),
+        )
+        dates = [tx.logged_date for tx in results]
+        assert dates == sorted(dates, reverse=True)
+
+    def test_single_string_transaction_type(self, session, populated_db):
+        """Passing transaction_type as a string works."""
+        results = transaction_service.get_transactions(
+            session, transaction_type="FINANCED"
+        )
+        assert len(results) == 1
+        assert results[0].merchant == "Apple Store"
+        assert results[0].transaction_type == TransactionType.FINANCED
+
+    def test_explicit_kwargs_envelope_name_and_account_name(self, session, populated_db):
+        """Passing envelope_name and account_name as explicit keyword arguments works."""
+        results = transaction_service.get_transactions(
+            session, envelope_name="Groceries", account_name="Visa"
+        )
+        assert len(results) == 1
+        assert results[0].merchant == "Target"
+        assert results[0].total == Decimal("100")
+
+

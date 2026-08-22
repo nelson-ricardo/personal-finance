@@ -5,6 +5,7 @@ from budget_app.schemas.transaction import (
     FinancedTransaction,
     TransactionBase,
     TransactionRequest,
+    TransactionResponse,
     TransactionType,
 )
 
@@ -18,5 +19,7 @@ __all__ = [
     "TransactionType",
     "TransactionBase",
     "TransactionRequest",
-    "FinancedTransaction"
+    "FinancedTransaction",
+    "TransactionResponse",
 ]
+

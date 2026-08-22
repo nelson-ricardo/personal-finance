@@ -6,12 +6,16 @@ from budget_app.services import (
 from budget_app.services.account_service import create_account
 from budget_app.services.envelope_service import (
     add_to_cash,
+    assign_to_envelope,
     create_envelope,
     transfer_between_envelopes,
+    transfer_from_unassigned,
 )
 from budget_app.services.transaction_service import (
     add_financed_transaction,
     add_reg_transaction,
+    fetch_transactions,
+    get_transactions,
 )
 
 __all__ = [
@@ -22,6 +26,12 @@ __all__ = [
     "create_envelope",
     "add_to_cash",
     "transfer_between_envelopes",
+    "assign_to_envelope",
+    "transfer_from_unassigned",
     "add_reg_transaction",
     "add_financed_transaction",
+    "get_transactions",
+    "fetch_transactions",
 ]
+
+
