@@ -1,3 +1,5 @@
+"""Ledger entry data schemas for transaction splits."""
+
 from decimal import Decimal
 
 from sqlalchemy import Numeric
@@ -5,11 +7,17 @@ from sqlmodel import Column, Field, SQLModel
 
 
 class LedgerBase(SQLModel):
+    """Base schema for ledger split entries."""
+
     amount: Decimal = Field(
         default=Decimal("0.00"),
         sa_column=Column(Numeric(precision=14, scale=2), nullable=False),
+        description="Signed monetary amount (negative for deductions/spending, positive for allocations/credits)",
     )
 
 
 class LedgerRequest(LedgerBase):
-    envelope_name: str
+    """Request payload for specifying a ledger entry with an envelope name."""
+
+    envelope_name: str = Field(description="Name of the envelope associated with this split")
+

@@ -1,3 +1,5 @@
+"""Transaction repository for database operations on Transaction and child Ledger entities."""
+
 from datetime import date
 from sqlmodel import Session, col, select
 
@@ -9,7 +11,22 @@ from budget_app.schemas import TransactionRequest, TransactionType
 def create_transaction(
     session: Session, transaction_info: TransactionRequest
 ) -> Transaction:
-    # get the payment method
+    """Creates and stages a master Transaction record with its child Ledger split entries.
+
+    Resolves payment method and envelope references, binds Ledger entries, and stages the
+    Transaction in the current session.
+
+    Args:
+        session: Active SQLModel database session.
+        transaction_info: TransactionRequest containing merchant, dates, account name, and ledger splits.
+
+    Returns:
+        The staged Transaction instance.
+
+    Raises:
+        ValueError: If the specified account or any referenced envelope does not exist.
+    """
+    # 1. Resolve the payment method account by name
     account = account_repo.get_account_by_name(
         session, transaction_info.payment_method_name
     )
@@ -18,7 +35,7 @@ def create_transaction(
             f"Account {transaction_info.payment_method_name} does not exist."
         )
 
-    # generate the ledger entries
+    # 2. Resolve each envelope and instantiate Ledger entries
     envelopes_by_name = {}
     for entry in transaction_info.ledger_entries:
         env = envelope_repo.get_envelope_by_name(session, entry.envelope_name)
@@ -33,7 +50,7 @@ def create_transaction(
         for entry in transaction_info.ledger_entries
     ]
 
-    # make the final transaction and add it to the session
+    # 3. Create master Transaction entity bound to account and ledger splits
     transaction: Transaction = Transaction(
         merchant=transaction_info.merchant,
         logged_date=transaction_info.logged_date,
@@ -47,6 +64,7 @@ def create_transaction(
 
     session.add(transaction)
     return transaction
+
 
 
 def get_transactions(

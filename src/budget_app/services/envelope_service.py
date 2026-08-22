@@ -1,3 +1,12 @@
+"""Envelope management and fund allocation service.
+
+Handles:
+- Creating custom budgeting envelopes.
+- Adding cash income into the default 'Unassigned' envelope.
+- Transferring money between envelopes (with balance validation).
+- Allocating funds from 'Unassigned' to specific budgeting envelopes.
+"""
+
 from decimal import Decimal
 
 from sqlmodel import Session
@@ -14,6 +23,7 @@ from budget_app.schemas import (
 
 
 def create_envelope(
+
     session: Session, envelope_info: EnvelopeBase
 ) -> Envelope:
     """Creates a new envelope and persists it in the database.

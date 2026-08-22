@@ -1,3 +1,5 @@
+"""Data access repositories package for querying and persisting database entities."""
+
 from budget_app.repositories import (
     account_repo,
     envelope_repo,
@@ -11,3 +13,4 @@ __all__ = [
     "ledger_repo",
     "transaction_repo",
 ]
+

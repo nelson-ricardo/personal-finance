@@ -1,28 +1,36 @@
+"""Transaction processing and retrieval service.
+
+Implements core double-entry accounting mechanics for:
+- Regular transactions (Cash expenses, Credit Card expenses with automated balancing transfers).
+- Financed installment transactions (creating dedicated envelopes with calculated monthly payments).
+- Transaction querying, filtering, and total calculations with CC balancing entry exclusions.
+"""
+
 from datetime import date
 from decimal import Decimal
 
 from sqlmodel import Session
 
 from budget_app.models import Account, Transaction
-from budget_app.schemas import EnvelopeBase
 from budget_app.repositories import (
     account_repo,
+    envelope_repo,
     ledger_repo,
     transaction_repo,
-    envelope_repo,
 )
 from budget_app.schemas import (
-    AccountType, 
-    LedgerRequest, 
-    TransactionRequest,
+    AccountType,
+    EnvelopeBase,
     FinancedTransaction,
+    LedgerRequest,
+    TransactionRequest,
     TransactionResponse,
-    TransactionType
+    TransactionType,
 )
-
 
 
 def add_reg_transaction(session: Session, transaction: TransactionRequest) -> Transaction:
+
     """Processes a regular transaction (income, expense, or transfer) and updates account balances.
 
     If a Credit Card was used, the transaction total is added to the 'Credit Card Payment'

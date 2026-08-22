@@ -1,3 +1,5 @@
+"""Business logic and domain service layer package."""
+
 from budget_app.services import (
     account_service,
     envelope_service,
@@ -33,5 +35,6 @@ __all__ = [
     "get_transactions",
     "fetch_transactions",
 ]
+
 
 
