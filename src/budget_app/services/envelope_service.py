@@ -114,21 +114,32 @@ def transfer_between_envelopes(
         and the recorded transfer Transaction instance.
 
     Raises:
-        ValueError: If source equals destination, amount is <= 0, either envelope
-            does not exist, or the source envelope has insufficient funds.
+        ValueError: If source or destination is empty/whitespace, source equals destination,
+            amount is <= 0, either envelope does not exist, or the source envelope has insufficient funds.
     """
+    if not source or not source.strip():
+        raise ValueError("transfer_between_envelopes: source envelope cannot be empty")
+
+    if not destination or not destination.strip():
+        raise ValueError("transfer_between_envelopes: destination envelope cannot be empty")
+
+    source = source.strip()
+    destination = destination.strip()
 
     if source == destination:
         raise ValueError("transfer_between_envelopes: source cannot equal destination")
 
-    if amount <= 0:
+    if amount <= Decimal("0"):
         raise ValueError("transfer_between_envelopes: amount cannot be 0 or negative")
+
     # get the source envelope and ensure it is not none
     src_envelope: Envelope | None = envelope_repo.get_envelope_by_name(
         session, source
     )
     if not src_envelope:
-        raise ValueError("transfer_between_envelopes: source envelope does not exist")
+        raise ValueError(
+            f"transfer_between_envelopes: source envelope '{source}' does not exist"
+        )
 
     # get the destination envelope and ensure it is not none
     dest_envelope: Envelope | None = envelope_repo.get_envelope_by_name(
@@ -136,7 +147,7 @@ def transfer_between_envelopes(
     )
     if not dest_envelope:
         raise ValueError(
-            "transfer_between_envelopes: destination envelope does not exist"
+            f"transfer_between_envelopes: destination envelope '{destination}' does not exist"
         )
 
     # ensure source envelope has enough balance to transfer from
@@ -176,3 +187,36 @@ def transfer_between_envelopes(
         new_balance_dest=envelope_repo.get_balance_for_envelope(session, dest_envelope),
         transfer_transaction=master_transaction,
     )
+
+
+def assign_to_envelope(
+    session: Session, destination: str, amount: Decimal
+) -> EnvelopeTransfer:
+    """Transfers funds from the 'Unassigned' envelope to a specified destination envelope.
+
+    Args:
+        session: Active SQLModel database session.
+        destination: Name of the envelope to receive funds.
+        amount: Positive amount of money to allocate from Unassigned.
+
+    Returns:
+        EnvelopeTransfer containing source (Unassigned) and destination envelopes,
+        updated balances, and the recorded transfer Transaction instance.
+
+    Raises:
+        ValueError: If destination is empty/whitespace, destination is 'Unassigned',
+            amount <= 0, destination envelope does not exist, or Unassigned envelope
+            has insufficient funds.
+    """
+    return transfer_between_envelopes(
+        session=session,
+        source="Unassigned",
+        destination=destination,
+        amount=amount,
+    )
+
+
+transfer_from_unassigned = assign_to_envelope
+assign_from_unassigned = assign_to_envelope
+
+

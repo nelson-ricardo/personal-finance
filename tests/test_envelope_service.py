@@ -156,3 +156,86 @@ class TestTransferBetweenEnvelopes:
             env_service.transfer_between_envelopes(
                 session, env_map[src_key], env_map[dest_key], amount
             )
+
+    def test_assign_to_envelope_success(self, session):
+        env_service.add_to_cash(session, Decimal("1000"), "Paycheck")
+        dest_env = env_service.create_envelope(
+            session, EnvelopeBase(name="Dining Out")
+        )
+
+        result = env_service.assign_to_envelope(
+            session, destination="Dining Out", amount=Decimal("250")
+        )
+
+        assert result is not None
+        assert result.source.name == "Unassigned"
+        assert result.destination.name == "Dining Out"
+        assert result.new_balance_src == Decimal("750")
+        assert result.new_balance_dest == Decimal("250")
+        assert len(result.transfer_transaction.entries) == 2
+
+    def test_assign_to_unassigned_raises_error(self, session):
+        env_service.add_to_cash(session, Decimal("500"), "Income")
+        with pytest.raises(
+            ValueError, match="source cannot equal destination"
+        ):
+            env_service.assign_to_envelope(
+                session, destination="Unassigned", amount=Decimal("100")
+            )
+
+    def test_assign_empty_destination_raises_error(self, session):
+        env_service.add_to_cash(session, Decimal("500"), "Income")
+        with pytest.raises(
+            ValueError, match="destination envelope cannot be empty"
+        ):
+            env_service.assign_to_envelope(
+                session, destination="   ", amount=Decimal("100")
+            )
+
+    def test_assign_zero_or_negative_amount_raises_error(self, session):
+        env_service.add_to_cash(session, Decimal("500"), "Income")
+        dest = env_service.create_envelope(session, EnvelopeBase(name="Rent"))
+
+        with pytest.raises(
+            ValueError, match="amount cannot be 0 or negative"
+        ):
+            env_service.assign_to_envelope(
+                session, destination="Rent", amount=Decimal("0")
+            )
+
+        with pytest.raises(
+            ValueError, match="amount cannot be 0 or negative"
+        ):
+            env_service.assign_to_envelope(
+                session, destination="Rent", amount=Decimal("-50")
+            )
+
+    def test_assign_nonexistent_destination_raises_error(self, session):
+        env_service.add_to_cash(session, Decimal("500"), "Income")
+        with pytest.raises(
+            ValueError, match="destination envelope 'NonExistent' does not exist"
+        ):
+            env_service.assign_to_envelope(
+                session, destination="NonExistent", amount=Decimal("100")
+            )
+
+    def test_assign_insufficient_unassigned_balance_raises_error(self, session):
+        env_service.add_to_cash(session, Decimal("100"), "Small Paycheck")
+        dest = env_service.create_envelope(session, EnvelopeBase(name="Bills"))
+
+        with pytest.raises(
+            ValueError, match="amount too high, can transfer up to .* from Unassigned"
+        ):
+            env_service.assign_to_envelope(
+                session, destination="Bills", amount=Decimal("500")
+            )
+
+    def test_alias_transfer_from_unassigned(self, session):
+        env_service.add_to_cash(session, Decimal("500"), "Income")
+        dest = env_service.create_envelope(session, EnvelopeBase(name="Gym"))
+
+        result = env_service.transfer_from_unassigned(
+            session, destination="Gym", amount=Decimal("75")
+        )
+        assert result.new_balance_src == Decimal("425")
+        assert result.new_balance_dest == Decimal("75")
