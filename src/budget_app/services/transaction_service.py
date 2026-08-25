@@ -223,13 +223,12 @@ def get_transactions(
     session: Session,
     *,
     limit: int | None = None,
-    envelope_id: str | int | None = None,
-    account_id: str | int | None = None,
+    envelope: str | None = None,
+    account: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
-    transaction_type: TransactionType | list[TransactionType] | str | list[str] | None = None,
-    envelope_name: str | None = None,
-    account_name: str | None = None,
+    transaction_type: TransactionType | list[TransactionType] | None = None,
+    **kwargs,
 ) -> list[TransactionResponse]:
     """Fetches a set of transactions based on various filtering criteria.
 
@@ -239,14 +238,12 @@ def get_transactions(
     Args:
         session: Active SQLModel database session.
         limit: Optional max number of transactions to return. Must be > 0 if specified.
-        envelope_id: Optional envelope name (str) or envelope ID (int) to filter by.
-        account_id: Optional account name (str) or account ID (int) to filter by.
+        envelope: Optional envelope name (str) to filter by.
+        account: Optional account name (str) to filter by.
         date_from: Optional start date (inclusive). Defaults to the 3rd of the current month.
         date_to: Optional end date (inclusive). Defaults to the 28th of the current month.
-        transaction_type: Optional transaction type(s) to filter by. By default, returns all
-            transaction types except TRANSFER (i.e. EXPENSE, INCOME, FINANCED).
-        envelope_name: Explicit alias for envelope_id when passing by name.
-        account_name: Explicit alias for account_id when passing by name.
+        transaction_type: Optional transaction type(s) from TransactionType enum to filter by.
+            By default, returns all transaction types except TRANSFER (i.e. EXPENSE, INCOME, FINANCED).
 
     Returns:
         List of TransactionResponse objects.
@@ -255,6 +252,18 @@ def get_transactions(
         ValueError: If limit <= 0, date_from > date_to, invalid transaction_type,
             or if the specified envelope or account does not exist.
     """
+    # Support camelCase alias transactionType or legacy aliases if passed
+    if "transactionType" in kwargs and transaction_type is None:
+        transaction_type = kwargs["transactionType"]
+    if "envelope_id" in kwargs and envelope is None:
+        envelope = kwargs["envelope_id"]
+    if "account_id" in kwargs and account is None:
+        account = kwargs["account_id"]
+    if "envelope_name" in kwargs and envelope is None:
+        envelope = kwargs["envelope_name"]
+    if "account_name" in kwargs and account is None:
+        account = kwargs["account_name"]
+
     today = date.today()
     if date_from is None:
         date_from = date(today.year, today.month, 3)
@@ -279,45 +288,45 @@ def get_transactions(
             TransactionType.FINANCED,
         ]
     elif isinstance(transaction_type, (list, tuple, set)):
-        parsed_types = [
-            t if isinstance(t, TransactionType) else TransactionType(str(t))
-            for t in transaction_type
-        ]
+        parsed_types = []
+        for t in transaction_type:
+            if isinstance(t, TransactionType):
+                parsed_types.append(t)
+            elif isinstance(t, str):
+                try:
+                    parsed_types.append(TransactionType(t))
+                except ValueError:
+                    raise ValueError(f"Invalid transaction type: {t}. Must be a TransactionType enum member.")
+            else:
+                raise ValueError(f"Invalid transaction type: {t}. Must be a TransactionType enum member.")
     elif isinstance(transaction_type, TransactionType):
         parsed_types = [transaction_type]
     elif isinstance(transaction_type, str):
-        parsed_types = [TransactionType(transaction_type)]
+        try:
+            parsed_types = [TransactionType(transaction_type)]
+        except ValueError:
+            raise ValueError(f"Invalid transaction type: {transaction_type}. Must be a TransactionType enum member.")
     else:
-        raise ValueError(f"Invalid transaction_type format: {transaction_type}")
+        raise ValueError(f"Invalid transaction_type format: {transaction_type}. Must be from TransactionType enum.")
 
-    # Resolve envelope filter
-    target_env = envelope_name if envelope_name is not None else envelope_id
+    # Resolve envelope filter (accepts string name)
     resolved_env_id: int | None = None
-    if target_env is not None:
-        if isinstance(target_env, int):
-            env = envelope_repo.get_envelope_by_id(session, target_env)
-        elif isinstance(target_env, str):
-            env = envelope_repo.get_envelope_by_name(session, target_env)
-        else:
-            raise ValueError("Envelope must be specified by string name or integer ID")
-
+    if envelope is not None:
+        if not isinstance(envelope, str):
+            raise ValueError(f"Envelope must be a string name, got {type(envelope).__name__}")
+        env = envelope_repo.get_envelope_by_name(session, envelope.strip())
         if not env:
-            raise ValueError(f"Envelope '{target_env}' does not exist")
+            raise ValueError(f"Envelope '{envelope}' does not exist")
         resolved_env_id = env.id
 
-    # Resolve account filter
-    target_acc = account_name if account_name is not None else account_id
+    # Resolve account filter (accepts string name)
     resolved_acc_id: int | None = None
-    if target_acc is not None:
-        if isinstance(target_acc, int):
-            acc = account_repo.get_account_by_id(session, target_acc)
-        elif isinstance(target_acc, str):
-            acc = account_repo.get_account_by_name(session, target_acc)
-        else:
-            raise ValueError("Account must be specified by string name or integer ID")
-
+    if account is not None:
+        if not isinstance(account, str):
+            raise ValueError(f"Account must be a string name, got {type(account).__name__}")
+        acc = account_repo.get_account_by_name(session, account.strip())
         if not acc:
-            raise ValueError(f"Account '{target_acc}' does not exist")
+            raise ValueError(f"Account '{account}' does not exist")
         resolved_acc_id = acc.id
 
     # Find CC payment envelope ID for balancing entry filtering
@@ -361,5 +370,6 @@ def get_transactions(
     return results
 
 
-
+# Aliases
+get_transaction = get_transactions
 fetch_transactions = get_transactions

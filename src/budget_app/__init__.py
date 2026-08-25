@@ -28,6 +28,7 @@ from budget_app.services import (
     create_account,
     create_envelope,
     fetch_transactions,
+    get_transaction,
     get_transactions,
     transfer_between_envelopes,
     transfer_from_unassigned,
@@ -71,6 +72,8 @@ __all__ = [
     "add_reg_transaction",
     "add_financed_transaction",
     "get_transactions",
+    "get_transaction",
     "fetch_transactions",
 ]
+
 

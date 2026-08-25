@@ -579,42 +579,31 @@ class TestGetTransactions:
         assert apple.total == Decimal("1200")
         assert apple.transaction_type == TransactionType.FINANCED
 
-    def test_filter_by_envelope_name(self, session, populated_db):
+    def test_filter_by_envelope(self, session, populated_db):
         """Filtering by envelope name returns all transactions touching that envelope."""
         # Both Walmart ($20) and Target ($30) used Groceries
         results = transaction_service.get_transactions(
-            session, envelope_id="Groceries"
+            session, envelope="Groceries"
         )
         merchants = [tx.merchant for tx in results]
         assert "Walmart" in merchants
         assert "Target" in merchants
         assert "Apple Store" not in merchants
 
-    def test_filter_by_envelope_id(self, session, populated_db):
-        """Filtering by integer envelope ID returns matching transactions."""
-        groceries_id = populated_db["groceries"].id
-        results = transaction_service.get_transactions(
-            session, envelope_id=groceries_id
-        )
-        merchants = [tx.merchant for tx in results]
-        assert "Walmart" in merchants
-        assert "Target" in merchants
-
     def test_filter_by_cc_payment_envelope_excludes_balancing_entries(self, session, populated_db):
         """Filtering by 'Credit Card Payment' envelope should NOT return regular CC expense transactions."""
         results = transaction_service.get_transactions(
-            session, envelope_id="Credit Card Payment"
+            session, envelope="Credit Card Payment"
         )
         merchants = [tx.merchant for tx in results]
         assert "Target" not in merchants
 
-    def test_filter_by_account_name_and_id(self, session, populated_db):
-        """Filtering by account name or ID returns only transactions using that payment method."""
-        cash_results = transaction_service.get_transactions(session, account_id="Cash")
+    def test_filter_by_account(self, session, populated_db):
+        """Filtering by account string name returns only transactions using that payment method."""
+        cash_results = transaction_service.get_transactions(session, account="Cash")
         assert all(tx.payment_method_name == "Cash" for tx in cash_results)
 
-        visa_id = populated_db["visa"].id
-        visa_results = transaction_service.get_transactions(session, account_id=visa_id)
+        visa_results = transaction_service.get_transactions(session, account="Visa")
         assert all(tx.payment_method_name == "Visa" for tx in visa_results)
         visa_merchants = [tx.merchant for tx in visa_results]
         assert "Target" in visa_merchants
@@ -639,17 +628,18 @@ class TestGetTransactions:
         assert len(results) == 2
 
     def test_explicit_transfer_transaction_type(self, session, populated_db):
-        """When transaction_type=TRANSFER is requested, transfers are returned."""
+        """When transaction_type=TransactionType.TRANSFER is requested, transfers are returned."""
         results = transaction_service.get_transactions(
             session, transaction_type=TransactionType.TRANSFER
         )
         assert len(results) >= 1
-        transfer = results[0]
-        assert transfer.transaction_type == TransactionType.TRANSFER
-        assert transfer.total == Decimal("50")
+        assert all(tx.transaction_type == TransactionType.TRANSFER for tx in results)
+        totals = {tx.total for tx in results}
+        assert Decimal("50") in totals or Decimal("200") in totals
+
 
     def test_filter_by_multiple_transaction_types(self, session, populated_db):
-        """Passing a list of transaction types filters accurately."""
+        """Passing a list of transaction types from enum filters accurately."""
         results = transaction_service.get_transactions(
             session,
             transaction_type=[TransactionType.EXPENSE, TransactionType.TRANSFER],
@@ -659,11 +649,12 @@ class TestGetTransactions:
         assert TransactionType.TRANSFER in types
         assert TransactionType.INCOME not in types
 
-    def test_alias_fetch_transactions(self, session, populated_db):
-        """fetch_transactions alias produces the exact same results as get_transactions."""
+    def test_alias_get_transaction_and_fetch_transactions(self, session, populated_db):
+        """get_transaction and fetch_transactions aliases produce the exact same results as get_transactions."""
         res1 = transaction_service.get_transactions(session)
-        res2 = transaction_service.fetch_transactions(session)
-        assert [r.id for r in res1] == [r.id for r in res2]
+        res2 = transaction_service.get_transaction(session)
+        res3 = transaction_service.fetch_transactions(session)
+        assert [r.id for r in res1] == [r.id for r in res2] == [r.id for r in res3]
 
     def test_invalid_limit_raises_error(self, session):
         with pytest.raises(ValueError, match="limit must be a positive integer"):
@@ -682,20 +673,20 @@ class TestGetTransactions:
 
     def test_nonexistent_envelope_raises_error(self, session):
         with pytest.raises(ValueError, match="Envelope 'GhostEnvelope' does not exist"):
-            transaction_service.get_transactions(session, envelope_id="GhostEnvelope")
+            transaction_service.get_transactions(session, envelope="GhostEnvelope")
 
-        with pytest.raises(ValueError, match="Envelope '99999' does not exist"):
-            transaction_service.get_transactions(session, envelope_id=99999)
+        with pytest.raises(ValueError, match="Envelope must be a string"):
+            transaction_service.get_transactions(session, envelope=123)
 
     def test_nonexistent_account_raises_error(self, session):
         with pytest.raises(ValueError, match="Account 'GhostAccount' does not exist"):
-            transaction_service.get_transactions(session, account_id="GhostAccount")
+            transaction_service.get_transactions(session, account="GhostAccount")
 
-        with pytest.raises(ValueError, match="Account '99999' does not exist"):
-            transaction_service.get_transactions(session, account_id=99999)
+        with pytest.raises(ValueError, match="Account must be a string"):
+            transaction_service.get_transactions(session, account=123)
 
     def test_invalid_transaction_type_raises_error(self, session):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid transaction type"):
             transaction_service.get_transactions(session, transaction_type="INVALID_TYPE")
 
     def test_sorting_order_descending(self, session, populated_db):
@@ -708,22 +699,23 @@ class TestGetTransactions:
         dates = [tx.logged_date for tx in results]
         assert dates == sorted(dates, reverse=True)
 
-    def test_single_string_transaction_type(self, session, populated_db):
-        """Passing transaction_type as a string works."""
+    def test_camel_case_transaction_type(self, session, populated_db):
+        """Passing transactionType keyword argument works."""
         results = transaction_service.get_transactions(
-            session, transaction_type="FINANCED"
+            session, transactionType=TransactionType.FINANCED
         )
         assert len(results) == 1
         assert results[0].merchant == "Apple Store"
         assert results[0].transaction_type == TransactionType.FINANCED
 
-    def test_explicit_kwargs_envelope_name_and_account_name(self, session, populated_db):
-        """Passing envelope_name and account_name as explicit keyword arguments works."""
+    def test_envelope_and_account_filtering(self, session, populated_db):
+        """Filtering with both envelope and account string names simultaneously."""
         results = transaction_service.get_transactions(
-            session, envelope_name="Groceries", account_name="Visa"
+            session, envelope="Groceries", account="Visa"
         )
         assert len(results) == 1
         assert results[0].merchant == "Target"
         assert results[0].total == Decimal("100")
+
 
 

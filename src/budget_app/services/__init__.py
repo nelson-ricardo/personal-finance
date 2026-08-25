@@ -17,6 +17,7 @@ from budget_app.services.transaction_service import (
     add_financed_transaction,
     add_reg_transaction,
     fetch_transactions,
+    get_transaction,
     get_transactions,
 )
 
@@ -33,8 +34,10 @@ __all__ = [
     "add_reg_transaction",
     "add_financed_transaction",
     "get_transactions",
+    "get_transaction",
     "fetch_transactions",
 ]
+
 
 
 
