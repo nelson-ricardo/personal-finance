@@ -16,9 +16,11 @@ from budget_app.services.envelope_service import (
 from budget_app.services.transaction_service import (
     add_financed_transaction,
     add_reg_transaction,
+    delete_transaction,
     fetch_transactions,
     get_transaction,
     get_transactions,
+    reverse_transaction,
 )
 
 __all__ = [
@@ -36,7 +38,10 @@ __all__ = [
     "get_transactions",
     "get_transaction",
     "fetch_transactions",
+    "delete_transaction",
+    "reverse_transaction",
 ]
+
 
 
 

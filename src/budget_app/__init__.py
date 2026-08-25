@@ -27,9 +27,11 @@ from budget_app.services import (
     assign_to_envelope,
     create_account,
     create_envelope,
+    delete_transaction,
     fetch_transactions,
     get_transaction,
     get_transactions,
+    reverse_transaction,
     transfer_between_envelopes,
     transfer_from_unassigned,
 )
@@ -74,6 +76,9 @@ __all__ = [
     "get_transactions",
     "get_transaction",
     "fetch_transactions",
+    "delete_transaction",
+    "reverse_transaction",
 ]
+
 
 

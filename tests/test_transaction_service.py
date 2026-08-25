@@ -718,4 +718,177 @@ class TestGetTransactions:
         assert results[0].total == Decimal("100")
 
 
+class TestDeleteTransaction:
+    def test_reverse_cash_expense(self, session):
+        # 1. Add income and allocate to Groceries
+        envelope_service.add_to_cash(session, Decimal("500"), "Income")
+        groceries = envelope_service.create_envelope(session, EnvelopeBase(name="Groceries"))
+        envelope_service.assign_to_envelope(session, destination="Groceries", amount=Decimal("200"))
+
+        # Cash balance = 500, Groceries balance = 200
+        cash = account_repo.get_account_by_name(session, "Cash")
+        assert cash.current_balance == Decimal("500")
+        assert envelope_repo.get_balance_for_envelope(session, groceries) == Decimal("200")
+
+        # 2. Make an expense of $50 from Groceries
+        expense_req = TransactionRequest(
+            merchant="Trader Joe's",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")],
+        )
+        tx = transaction_service.add_reg_transaction(session, expense_req)
+        session.refresh(cash)
+        assert cash.current_balance == Decimal("450")
+        assert envelope_repo.get_balance_for_envelope(session, groceries) == Decimal("150")
+
+        # 3. Delete / Reverse the transaction
+        rev_tx = transaction_service.delete_transaction(session, tx.id)
+
+        assert rev_tx is not None
+        assert rev_tx.transaction_type == TransactionType.REVERSAL
+        assert rev_tx.merchant == "Reversal: Trader Joe's"
+        assert len(rev_tx.entries) == 1
+        assert rev_tx.entries[0].amount == Decimal("50")  # Inverted
+
+        # Balances restored
+        session.refresh(cash)
+        assert cash.current_balance == Decimal("500")
+        assert envelope_repo.get_balance_for_envelope(session, groceries) == Decimal("200")
+
+        # Original transaction note updated
+        session.refresh(tx)
+        assert "[REVERSED]" in tx.note
+
+    def test_reverse_credit_card_expense(self, session):
+        # 1. Create Credit Card and Dining envelope
+        visa = account_service.create_account(
+            session, AccountBase(name="Visa", account_type=AccountType.CREDIT_CARD)
+        )
+        dining = envelope_service.create_envelope(session, EnvelopeBase(name="Dining"))
+        envelope_service.add_to_cash(session, Decimal("500"), "Income")
+        envelope_service.assign_to_envelope(session, destination="Dining", amount=Decimal("150"))
+
+        cc_payment_env = envelope_repo.get_envelope_by_name(session, "Credit Card Payment")
+
+        # 2. Spend $60 on Visa from Dining
+        expense_req = TransactionRequest(
+            merchant="Chipotle",
+            payment_method_name="Visa",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[LedgerRequest(amount=Decimal("-60"), envelope_name="Dining")],
+        )
+        tx = transaction_service.add_reg_transaction(session, expense_req)
+
+        session.refresh(visa)
+        assert visa.current_balance == Decimal("60")
+        assert envelope_repo.get_balance_for_envelope(session, dining) == Decimal("90")
+        assert envelope_repo.get_balance_for_envelope(session, cc_payment_env) == Decimal("60")
+
+        # 3. Reverse the credit card expense
+        rev_tx = transaction_service.delete_transaction(session, tx.id)
+
+        assert rev_tx.transaction_type == TransactionType.REVERSAL
+        session.refresh(visa)
+        assert visa.current_balance == Decimal("0")  # Debt removed
+        assert envelope_repo.get_balance_for_envelope(session, dining) == Decimal("150")  # Dining restored
+        assert envelope_repo.get_balance_for_envelope(session, cc_payment_env) == Decimal("0")  # CC payment reduced
+
+    def test_reverse_income_transaction(self, session):
+        # 1. Add income
+        income_tx = envelope_service.add_to_cash(session, Decimal("1000"), "Paycheck")
+        cash = account_repo.get_account_by_name(session, "Cash")
+        unassigned = envelope_repo.get_envelope_by_name(session, "Unassigned")
+
+        assert cash.current_balance == Decimal("1000")
+        assert envelope_repo.get_balance_for_envelope(session, unassigned) == Decimal("1000")
+
+        # 2. Reverse the income transaction
+        rev_tx = transaction_service.delete_transaction(session, income_tx.id)
+
+        session.refresh(cash)
+        assert cash.current_balance == Decimal("0")  # Income deducted from cash
+        assert envelope_repo.get_balance_for_envelope(session, unassigned) == Decimal("0")
+
+    def test_reverse_financed_transaction(self, session):
+        # 1. Create Credit Card and Financed transaction
+        visa = account_service.create_account(
+            session, AccountBase(name="Visa", account_type=AccountType.CREDIT_CARD)
+        )
+        financed_req = FinancedTransaction(
+            merchant="Apple",
+            amount=Decimal("1200"),
+            term=12,
+            payment_method_name="Visa",
+            envelope_name="MacBook",
+        )
+        financed_tx = transaction_service.add_financed_transaction(session, financed_req)
+
+        session.refresh(visa)
+        assert visa.current_balance == Decimal("1200")
+
+        # 2. Reverse the financed transaction
+        rev_tx = transaction_service.delete_transaction(session, financed_tx.id)
+
+        session.refresh(visa)
+        assert visa.current_balance == Decimal("0")  # Financed debt cleared
+        assert rev_tx.transaction_type == TransactionType.REVERSAL
+
+    def test_reverse_already_reversed_raises_error(self, session):
+        envelope_service.add_to_cash(session, Decimal("200"), "Income")
+        groceries = envelope_service.create_envelope(session, EnvelopeBase(name="Groceries"))
+        envelope_service.assign_to_envelope(session, destination="Groceries", amount=Decimal("100"))
+
+        expense_req = TransactionRequest(
+            merchant="Market",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[LedgerRequest(amount=Decimal("-40"), envelope_name="Groceries")],
+        )
+        tx = transaction_service.add_reg_transaction(session, expense_req)
+
+        # First reversal succeeds
+        rev_tx = transaction_service.delete_transaction(session, tx.id)
+
+        # Attempting to reverse the original transaction again fails
+        with pytest.raises(ValueError, match="has already been reversed"):
+            transaction_service.delete_transaction(session, tx.id)
+
+        # Attempting to reverse the reversal transaction itself fails
+        with pytest.raises(ValueError, match="has already been reversed"):
+            transaction_service.delete_transaction(session, rev_tx.id)
+
+    def test_reverse_nonexistent_transaction_raises_error(self, session):
+        with pytest.raises(ValueError, match="Transaction with id: 99999 does not exist"):
+            transaction_service.delete_transaction(session, 99999)
+
+    def test_reversal_filtered_in_get_transactions(self, session):
+        # Create an expense and reverse it
+        envelope_service.add_to_cash(session, Decimal("300"), "Income")
+        groceries = envelope_service.create_envelope(session, EnvelopeBase(name="Groceries"))
+        envelope_service.assign_to_envelope(session, destination="Groceries", amount=Decimal("100"))
+
+        expense_req = TransactionRequest(
+            merchant="Costco",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")],
+        )
+        tx = transaction_service.add_reg_transaction(session, expense_req)
+        rev_tx = transaction_service.delete_transaction(session, tx.id)
+
+        # Default get_transactions should not include REVERSAL
+        default_results = transaction_service.get_transactions(session)
+        assert not any(t.transaction_type == TransactionType.REVERSAL for t in default_results)
+
+        # Explicit request for REVERSAL should return the reversal transaction
+        reversal_results = transaction_service.get_transactions(
+            session, transaction_type=TransactionType.REVERSAL
+        )
+        assert any(t.id == rev_tx.id for t in reversal_results)
+
+
+
+
+
 

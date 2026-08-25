@@ -8,6 +8,7 @@ Implements core double-entry accounting mechanics for:
 
 from datetime import date
 from decimal import Decimal
+from typing import List
 
 from sqlmodel import Session
 
@@ -179,8 +180,8 @@ def add_financed_transaction(session: Session, transaction: FinancedTransaction)
 def calculate_transaction_total(transaction: Transaction) -> Decimal:
     """Calculates the total monetary amount for a transaction.
 
-    For credit card regular expense transactions, excludes the automated balancing entry
-    transferred into the 'Credit Card Payment' envelope.
+    For credit card regular expense transactions and their reversals, excludes the balancing
+    entry associated with the 'Credit Card Payment' envelope.
     For financed transactions, returns the positive financed amount.
     For transfers, returns the transferred amount.
 
@@ -211,7 +212,6 @@ def calculate_transaction_total(transaction: Transaction) -> Decimal:
             is_credit_card
             and entry.envelope is not None
             and entry.envelope.name == "Credit Card Payment"
-            and entry.amount > Decimal("0")
         ):
             continue
         total += abs(entry.amount)
@@ -370,6 +370,89 @@ def get_transactions(
     return results
 
 
+def delete_transaction(session: Session, transaction_id: int) -> Transaction:
+    """Reverses an existing transaction by creating a compensating reversal transaction.
+
+    Inverts all child ledger entries, restores account balances appropriately according to
+    the original transaction type (EXPENSE, INCOME, FINANCED, TRANSFER), and marks the original
+    transaction as reversed in its note to preserve an immutable audit trail.
+
+    Args:
+        session: Active SQLModel database session.
+        transaction_id: Integer ID of the transaction to delete/reverse.
+
+    Returns:
+        The newly created compensating reversal Transaction instance.
+
+    Raises:
+        ValueError: If transaction_id does not exist, transaction is already reversed,
+            or if the transaction is missing required account/envelope relations.
+    """
+    og_tx = session.get(Transaction, transaction_id)
+    if not og_tx:
+        raise ValueError(f"Transaction with id: {transaction_id} does not exist.")
+
+    # Guard against reversing a reversal or an already-reversed transaction
+    if og_tx.transaction_type == TransactionType.REVERSAL or (og_tx.note and "[REVERSED]" in og_tx.note):
+        raise ValueError(f"Transaction #{transaction_id} has already been reversed.")
+
+    if not og_tx.account:
+        raise ValueError(f"Transaction #{transaction_id} has no associated payment account.")
+
+    # 1. Reverse all child ledger entries with inverted signs
+    reverse_entries: list[LedgerRequest] = []
+    for entry in og_tx.entries:
+        if not entry.envelope:
+            raise ValueError(f"Envelope for ledger entry #{entry.id} not found.")
+        reverse_entries.append(
+            LedgerRequest(
+                amount=-1 * entry.amount,
+                envelope_name=entry.envelope.name,
+            )
+        )
+
+    # 2. Determine original total magnitude
+    tx_total = calculate_transaction_total(og_tx)
+
+    # 3. Create the compensating reversal transaction
+    rev_tx_req = TransactionRequest(
+        merchant=f"Reversal: {og_tx.merchant}",
+        logged_date=date.today(),
+        posted_date=None,
+        note=f"Reversal of transaction #{transaction_id}",
+        is_reconciled=False,
+        payment_method_name=og_tx.account.name,
+        transaction_type=TransactionType.REVERSAL,
+        ledger_entries=reverse_entries,
+    )
+    reversal_tx = transaction_repo.create_transaction(session, rev_tx_req)
+
+    # 4. Reverse account balance changes accurately
+    account = og_tx.account
+    if og_tx.transaction_type == TransactionType.EXPENSE:
+        if account.account_type == AccountType.CASH:
+            account.current_balance += tx_total
+        elif account.account_type == AccountType.CREDIT_CARD:
+            account.current_balance -= tx_total
+
+    elif og_tx.transaction_type == TransactionType.INCOME:
+        if account.account_type == AccountType.CASH:
+            account.current_balance -= tx_total
+
+    elif og_tx.transaction_type == TransactionType.FINANCED:
+        account.current_balance -= tx_total
+
+    # 5. Mark original transaction as reversed in notes
+    og_tx.note = f"[REVERSED] {og_tx.note}" if og_tx.note else "[REVERSED]"
+    session.add(account)
+    session.add(og_tx)
+
+    session.commit()
+    session.refresh(reversal_tx)
+    return reversal_tx
+
+
 # Aliases
 get_transaction = get_transactions
 fetch_transactions = get_transactions
+reverse_transaction = delete_transaction
