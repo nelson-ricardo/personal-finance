@@ -24,10 +24,13 @@ from budget_app.schemas import (
     EnvelopeBase,
     FinancedTransaction,
     LedgerRequest,
+    LedgerResponse,
+    TransactionDetailResponse,
     TransactionRequest,
     TransactionResponse,
     TransactionType,
 )
+
 
 
 def add_reg_transaction(session: Session, transaction: TransactionRequest) -> Transaction:
@@ -228,12 +231,15 @@ def get_transactions(
     date_from: date | None = None,
     date_to: date | None = None,
     transaction_type: TransactionType | list[TransactionType] | None = None,
+    include_reversed: bool = False,
     **kwargs,
 ) -> list[TransactionResponse]:
     """Fetches a set of transactions based on various filtering criteria.
 
     Transforms transactions into Pydantic models containing the transaction total
-    (with credit card balancing entries filtered out).
+    (with credit card balancing entries filtered out). Automatically filters out
+    REVERSAL transactions and reversed transactions by default unless include_reversed=True
+    or transaction_type=TransactionType.REVERSAL is specified.
 
     Args:
         session: Active SQLModel database session.
@@ -243,7 +249,8 @@ def get_transactions(
         date_from: Optional start date (inclusive). Defaults to the 3rd of the current month.
         date_to: Optional end date (inclusive). Defaults to the 28th of the current month.
         transaction_type: Optional transaction type(s) from TransactionType enum to filter by.
-            By default, returns all transaction types except TRANSFER (i.e. EXPENSE, INCOME, FINANCED).
+            By default, returns all active transaction types except TRANSFER and REVERSAL (i.e. EXPENSE, INCOME, FINANCED).
+        include_reversed: Whether to include reversed transactions and reversals (default False).
 
     Returns:
         List of TransactionResponse objects.
@@ -255,6 +262,8 @@ def get_transactions(
     # Support camelCase alias transactionType or legacy aliases if passed
     if "transactionType" in kwargs and transaction_type is None:
         transaction_type = kwargs["transactionType"]
+    if "includeReversed" in kwargs:
+        include_reversed = kwargs["includeReversed"]
     if "envelope_id" in kwargs and envelope is None:
         envelope = kwargs["envelope_id"]
     if "account_id" in kwargs and account is None:
@@ -281,7 +290,7 @@ def get_transactions(
     # Parse and validate transaction_type filter
     parsed_types: list[TransactionType]
     if transaction_type is None:
-        # Default: all transaction types but transfers
+        # Default: all active transaction types but transfers and reversals
         parsed_types = [
             TransactionType.EXPENSE,
             TransactionType.INCOME,
@@ -333,6 +342,9 @@ def get_transactions(
     cc_env = envelope_repo.get_envelope_by_name(session, "Credit Card Payment")
     cc_env_id = cc_env.id if cc_env else None
 
+    # Determine whether to exclude reversed transactions
+    exclude_rev = not include_reversed and (TransactionType.REVERSAL not in parsed_types)
+
     # Query the repository
     transactions = transaction_repo.get_transactions(
         session,
@@ -343,7 +355,9 @@ def get_transactions(
         limit=limit,
         transaction_types=parsed_types,
         exclude_balancing_for_envelope_id=cc_env_id,
+        exclude_reversed=exclude_rev,
     )
+
 
     # Convert to response models with total calculations
     results: list[TransactionResponse] = []
@@ -452,7 +466,60 @@ def delete_transaction(session: Session, transaction_id: int) -> Transaction:
     return reversal_tx
 
 
+def get_transaction_by_id(session: Session, transaction_id: int) -> TransactionDetailResponse:
+    """Fetches a single transaction with its metadata, payment account name, and ledger split entries.
+
+    Args:
+        session: Active SQLModel database session.
+        transaction_id: Integer ID of the transaction to look up.
+
+    Returns:
+        TransactionDetailResponse containing full transaction metadata, account name,
+        computed total, and list of child LedgerResponse entries with envelope information.
+
+    Raises:
+        ValueError: If the transaction with the specified ID does not exist.
+    """
+    tx = transaction_repo.get_transaction_by_id(session, transaction_id)
+    if not tx:
+        raise ValueError(f"Transaction with id: {transaction_id} does not exist.")
+
+    total = calculate_transaction_total(tx)
+    payment_name = tx.account.name if tx.account else ""
+
+    if tx.id is None or tx.payment_method_id is None:
+        raise ValueError(f"Transaction #{transaction_id} is missing required identifiers.")
+
+    ledger_entries = [
+        LedgerResponse(
+            id=entry.id,
+            amount=entry.amount,
+            envelope_id=entry.envelope_id,
+            envelope_name=entry.envelope.name if entry.envelope else "",
+        )
+        for entry in tx.entries
+        if entry.id is not None and entry.envelope_id is not None
+    ]
+
+    return TransactionDetailResponse(
+        id=tx.id,
+        merchant=tx.merchant,
+        logged_date=tx.logged_date,
+        posted_date=tx.posted_date,
+        note=tx.note,
+        is_reconciled=tx.is_reconciled,
+        payment_method_id=tx.payment_method_id,
+        payment_method_name=payment_name,
+        transaction_type=tx.transaction_type,
+        total=total,
+        entries=ledger_entries,
+    )
+
+
 # Aliases
 get_transaction = get_transactions
 fetch_transactions = get_transactions
 reverse_transaction = delete_transaction
+fetch_transaction_by_id = get_transaction_by_id
+get_transaction_detail = get_transaction_by_id
+fetch_transaction_detail = get_transaction_by_id

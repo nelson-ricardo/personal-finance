@@ -21,3 +21,12 @@ class LedgerRequest(LedgerBase):
 
     envelope_name: str = Field(description="Name of the envelope associated with this split")
 
+
+class LedgerResponse(LedgerBase):
+    """Response schema for a single ledger entry with envelope details."""
+
+    id: int = Field(description="Unique identifier for the ledger entry")
+    envelope_id: int = Field(description="ID of the associated envelope")
+    envelope_name: str = Field(description="Display name of the associated envelope")
+
+

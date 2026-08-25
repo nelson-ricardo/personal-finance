@@ -77,6 +77,7 @@ def get_transactions(
     limit: int | None = None,
     transaction_types: list[TransactionType] | None = None,
     exclude_balancing_for_envelope_id: int | None = None,
+    exclude_reversed: bool = False,
 ) -> list[Transaction]:
     """Queries transactions from the database based on the provided filters.
 
@@ -90,6 +91,8 @@ def get_transactions(
         transaction_types: Optional list of TransactionType enums to filter by.
         exclude_balancing_for_envelope_id: Optional envelope ID for which credit card
             balancing entries (amount > 0) should not qualify a transaction.
+        exclude_reversed: If True, excludes both REVERSAL type transactions and transactions
+            marked with [REVERSED] in their note.
 
     Returns:
         List of matching Transaction instances ordered by logged_date descending.
@@ -108,6 +111,12 @@ def get_transactions(
     if transaction_types is not None:
         stmt = stmt.where(col(Transaction.transaction_type).in_(transaction_types))
 
+    if exclude_reversed:
+        stmt = stmt.where(col(Transaction.transaction_type) != TransactionType.REVERSAL)
+        stmt = stmt.where(
+            (col(Transaction.note) == None) | (~col(Transaction.note).ilike("%[REVERSED]%"))
+        )
+
     if envelope_id is not None:
         subquery = select(Ledger.transaction_id).where(
             col(Ledger.envelope_id) == envelope_id
@@ -120,6 +129,7 @@ def get_transactions(
 
         stmt = stmt.where(col(Transaction.id).in_(subquery))
 
+
     stmt = stmt.order_by(
         col(Transaction.logged_date).desc(),
         col(Transaction.id).desc(),
@@ -130,5 +140,19 @@ def get_transactions(
 
     results = session.exec(stmt).all()
     return list(results)
+
+
+def get_transaction_by_id(session: Session, transaction_id: int) -> Transaction | None:
+    """Fetches a single Transaction by its primary key ID.
+
+    Args:
+        session: Active SQLModel database session.
+        transaction_id: Primary key integer ID.
+
+    Returns:
+        The matching Transaction instance if found, otherwise None.
+    """
+    return session.get(Transaction, transaction_id)
+
 
 

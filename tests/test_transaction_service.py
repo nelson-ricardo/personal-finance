@@ -877,15 +877,142 @@ class TestDeleteTransaction:
         tx = transaction_service.add_reg_transaction(session, expense_req)
         rev_tx = transaction_service.delete_transaction(session, tx.id)
 
-        # Default get_transactions should not include REVERSAL
+        # 1. Default get_transactions should exclude both the REVERSAL transaction and the reversed transaction
         default_results = transaction_service.get_transactions(session)
         assert not any(t.transaction_type == TransactionType.REVERSAL for t in default_results)
+        assert not any(t.id == tx.id for t in default_results)
+        assert not any(t.id == rev_tx.id for t in default_results)
 
-        # Explicit request for REVERSAL should return the reversal transaction
+        # 2. Explicit request for REVERSAL should return the reversal transaction
         reversal_results = transaction_service.get_transactions(
             session, transaction_type=TransactionType.REVERSAL
         )
         assert any(t.id == rev_tx.id for t in reversal_results)
+        assert all(t.transaction_type == TransactionType.REVERSAL for t in reversal_results)
+
+        # 3. include_reversed=True should include the reversed transaction
+        all_results = transaction_service.get_transactions(session, include_reversed=True)
+        assert any(t.id == tx.id for t in all_results)
+
+
+class TestGetTransactionById:
+    def test_get_single_split_cash_transaction_details(self, session):
+        # 1. Setup Cash and envelopes
+        envelope_service.add_to_cash(session, Decimal("500"), "Income")
+        groceries = envelope_service.create_envelope(session, EnvelopeBase(name="Groceries"))
+        fun = envelope_service.create_envelope(session, EnvelopeBase(name="Fun"))
+        envelope_service.assign_to_envelope(session, destination="Groceries", amount=Decimal("100"))
+        envelope_service.assign_to_envelope(session, destination="Fun", amount=Decimal("100"))
+
+        # 2. Create a split expense ($30 Groceries, $20 Fun)
+        split_req = TransactionRequest(
+            merchant="Walmart",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            note="Weekly split shopping",
+            ledger_entries=[
+                LedgerRequest(amount=Decimal("-30"), envelope_name="Groceries"),
+                LedgerRequest(amount=Decimal("-20"), envelope_name="Fun"),
+            ],
+        )
+        tx = transaction_service.add_reg_transaction(session, split_req)
+
+        # 3. Fetch transaction detail by ID
+        detail = transaction_service.get_transaction_by_id(session, tx.id)
+
+        assert detail is not None
+        assert detail.id == tx.id
+        assert detail.merchant == "Walmart"
+        assert detail.note == "Weekly split shopping"
+        assert detail.payment_method_name == "Cash"
+        assert detail.account_name == "Cash"
+        assert detail.transaction_type == TransactionType.EXPENSE
+        assert detail.total == Decimal("50")
+        assert detail.total_amount == Decimal("50")
+
+        # Verify child ledger entries
+        assert len(detail.entries) == 2
+        assert len(detail.ledger_entries) == 2
+
+        entry_map = {e.envelope_name: e.amount for e in detail.entries}
+        assert entry_map["Groceries"] == Decimal("-30")
+        assert entry_map["Fun"] == Decimal("-20")
+
+        # Verify envelope IDs
+        for e in detail.entries:
+            if e.envelope_name == "Groceries":
+                assert e.envelope_id == groceries.id
+            elif e.envelope_name == "Fun":
+                assert e.envelope_id == fun.id
+
+    def test_get_single_credit_card_transaction_details(self, session):
+        visa = account_service.create_account(
+            session, AccountBase(name="Visa", account_type=AccountType.CREDIT_CARD)
+        )
+        dining = envelope_service.create_envelope(session, EnvelopeBase(name="Dining"))
+        envelope_service.add_to_cash(session, Decimal("500"), "Income")
+        envelope_service.assign_to_envelope(session, destination="Dining", amount=Decimal("100"))
+
+        expense_req = TransactionRequest(
+            merchant="Olive Garden",
+            payment_method_name="Visa",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[LedgerRequest(amount=Decimal("-75"), envelope_name="Dining")],
+        )
+        tx = transaction_service.add_reg_transaction(session, expense_req)
+
+        detail = transaction_service.get_transaction_by_id(session, tx.id)
+
+        assert detail.id == tx.id
+        assert detail.payment_method_name == "Visa"
+        assert detail.total == Decimal("75")
+        # Contains Dining (-75) and Credit Card Payment (+75)
+        assert len(detail.entries) == 2
+        entry_map = {e.envelope_name: e.amount for e in detail.entries}
+        assert entry_map["Dining"] == Decimal("-75")
+        assert entry_map["Credit Card Payment"] == Decimal("75")
+
+    def test_get_single_financed_transaction_details(self, session):
+        visa = account_service.create_account(
+            session, AccountBase(name="Visa", account_type=AccountType.CREDIT_CARD)
+        )
+        financed_req = FinancedTransaction(
+            merchant="Best Buy",
+            amount=Decimal("600"),
+            term=6,
+            payment_method_name="Visa",
+            envelope_name="TV Financing",
+        )
+        financed_tx = transaction_service.add_financed_transaction(session, financed_req)
+
+        detail = transaction_service.get_transaction_by_id(session, financed_tx.id)
+
+        assert detail.id == financed_tx.id
+        assert detail.merchant == "Best Buy"
+        assert detail.transaction_type == TransactionType.FINANCED
+        assert detail.total == Decimal("600")
+        assert len(detail.entries) == 2
+        amounts = {e.amount for e in detail.entries}
+        assert Decimal("600") in amounts
+        assert Decimal("-600") in amounts
+
+    def test_aliases_fetch_transaction_by_id_and_detail(self, session):
+        envelope_service.add_to_cash(session, Decimal("100"), "Cash Gift")
+        income = account_repo.get_account_by_name(session, "Cash").transactions[0]
+
+        res1 = transaction_service.get_transaction_by_id(session, income.id)
+        res2 = transaction_service.fetch_transaction_by_id(session, income.id)
+        res3 = transaction_service.get_transaction_detail(session, income.id)
+
+        assert res1.id == res2.id == res3.id
+        assert res1.merchant == res2.merchant == res3.merchant
+        assert len(res1.entries) == len(res2.entries) == len(res3.entries)
+
+    def test_get_nonexistent_transaction_by_id_raises_error(self, session):
+        with pytest.raises(ValueError, match="Transaction with id: 99999 does not exist"):
+            transaction_service.get_transaction_by_id(session, 99999)
+
+
 
 
 

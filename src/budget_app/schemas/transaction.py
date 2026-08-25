@@ -82,3 +82,17 @@ class TransactionResponse(TransactionBase):
     def account_name(self) -> str:
         """Alias for payment_method_name."""
         return self.payment_method_name
+
+
+class TransactionDetailResponse(TransactionResponse):
+    """Detailed response model for a single transaction including its ledger split entries."""
+
+    entries: List[ledger.LedgerResponse] = Field(
+        default_factory=list,
+        description="List of ledger split entries with envelope and amount information",
+    )
+
+    @property
+    def ledger_entries(self) -> List[ledger.LedgerResponse]:
+        """Alias for entries."""
+        return self.entries

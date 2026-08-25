@@ -15,7 +15,9 @@ from budget_app.schemas import (
     EnvelopeTransfer,
     LedgerBase,
     LedgerRequest,
+    LedgerResponse,
     TransactionBase,
+    TransactionDetailResponse,
     TransactionRequest,
     TransactionResponse,
     TransactionType,
@@ -28,8 +30,10 @@ from budget_app.services import (
     create_account,
     create_envelope,
     delete_transaction,
+    fetch_transaction_by_id,
     fetch_transactions,
     get_transaction,
+    get_transaction_by_id,
     get_transactions,
     reverse_transaction,
     transfer_between_envelopes,
@@ -60,10 +64,12 @@ __all__ = [
     "EnvelopeTransfer",
     "LedgerBase",
     "LedgerRequest",
+    "LedgerResponse",
     "TransactionType",
     "TransactionBase",
     "TransactionRequest",
     "TransactionResponse",
+    "TransactionDetailResponse",
     # Services
     "create_account",
     "create_envelope",
@@ -76,9 +82,12 @@ __all__ = [
     "get_transactions",
     "get_transaction",
     "fetch_transactions",
+    "get_transaction_by_id",
+    "fetch_transaction_by_id",
     "delete_transaction",
     "reverse_transaction",
 ]
+
 
 
 
