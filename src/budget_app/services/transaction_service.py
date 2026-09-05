@@ -23,6 +23,7 @@ from budget_app.schemas import (
     AccountType,
     EnvelopeBase,
     FinancedTransaction,
+    FinancedTransactionUpdateRequest,
     LedgerRequest,
     LedgerResponse,
     TransactionDetailResponse,
@@ -703,6 +704,168 @@ def update_transaction(
     return tx
 
 
+def update_financed_transaction(
+    session: Session,
+    transaction_id: int,
+    updates: FinancedTransactionUpdateRequest,
+) -> Transaction:
+    """Modifies an existing financed transaction in-place while maintaining accounting integrity.
+
+    Supports metadata updates, principal amount adjustments, installment term modifications,
+    payment method switching (between Credit Cards), and envelope reassignments.
+    Reconciled transactions only permit metadata updates (notes, merchant, dates); their
+    financial terms and accounts remain locked. Non-financed and reversed transactions
+    cannot be modified through this function. If amount is modified, term must also
+    be provided.
+
+    Args:
+        session: Active SQLModel database session.
+        transaction_id: Integer ID of the financed transaction to modify.
+        updates: FinancedTransactionUpdateRequest containing fields to update.
+
+    Returns:
+        The updated and refreshed Transaction instance.
+
+    Raises:
+        ValueError: If transaction doesn't exist, is not FINANCED, has been reversed,
+            is reconciled and financial fields are altered, amount is modified
+            without term, payment method is not a Credit Card, or non-positive
+            amounts/terms are given.
+    """
+    tx = session.get(Transaction, transaction_id)
+    if not tx:
+        raise ValueError(f"Transaction with id: {transaction_id} does not exist.")
+
+    if tx.transaction_type != TransactionType.FINANCED:
+        raise ValueError(
+            "Only financed transactions can be modified through this function."
+        )
+
+    is_reversal = tx.transaction_type == TransactionType.REVERSAL
+    has_reversed_note = bool(tx.note and "[REVERSED]" in tx.note)
+    if is_reversal or has_reversed_note:
+        raise ValueError(
+            f"Transaction #{transaction_id} has been reversed and cannot be modified."
+        )
+
+    if not tx.account:
+        raise ValueError(
+            f"Transaction #{transaction_id} has no associated payment account."
+        )
+
+    # Check reconciled constraints
+    if tx.is_reconciled:
+        if updates.amount is not None:
+            raise ValueError(
+                "Cannot modify amount of a reconciled financed transaction."
+            )
+        if updates.term is not None:
+            raise ValueError(
+                "Cannot modify term of a reconciled financed transaction."
+            )
+        if (
+            updates.payment_method_name is not None
+            and updates.payment_method_name != tx.account.name
+        ):
+            raise ValueError(
+                "Cannot change the payment method of a reconciled financed transaction."
+            )
+        if updates.envelope_name is not None:
+            raise ValueError(
+                "Cannot modify envelope of a reconciled financed transaction."
+            )
+
+    # Validations
+    if updates.merchant is not None:
+        if not updates.merchant.strip():
+            raise ValueError("Merchant name cannot be empty.")
+        tx.merchant = updates.merchant.strip()
+
+    if updates.amount is not None:
+        if updates.amount <= Decimal("0"):
+            raise ValueError("Amount financed has to be greater than 0.")
+        if updates.term is None:
+            raise ValueError(
+                "Term must be provided when modifying the financed amount."
+            )
+
+    if updates.term is not None:
+        if updates.term <= 0:
+            raise ValueError("Term has to be a positive number.")
+
+    if updates.logged_date is not None:
+        tx.logged_date = updates.logged_date
+
+    if updates.posted_date is not None:
+        tx.posted_date = updates.posted_date
+
+    if updates.note is not None:
+        tx.note = updates.note
+
+    if updates.is_reconciled is not None:
+        tx.is_reconciled = updates.is_reconciled
+
+    # Resolve target payment method
+    old_account = tx.account
+    target_account = old_account
+    if updates.payment_method_name is not None:
+        acc = account_repo.get_account_by_name(session, updates.payment_method_name)
+        if not acc:
+            raise ValueError(f"Account {updates.payment_method_name} does not exist.")
+        if acc.account_type != AccountType.CREDIT_CARD:
+            raise ValueError("Account type has to be credit card.")
+        target_account = acc
+
+    # Resolve envelope
+    if not tx.entries:
+        raise ValueError(f"Transaction #{transaction_id} has no ledger entries.")
+    first_entry = tx.entries[0]
+    if not first_entry.envelope:
+        raise ValueError(f"Envelope for transaction #{transaction_id} not found.")
+    current_envelope = first_entry.envelope
+
+    target_envelope = current_envelope
+    if updates.envelope_name is not None and updates.envelope_name.strip():
+        target_envelope = envelope_repo.get_or_create_envelope(
+            session, EnvelopeBase(name=updates.envelope_name.strip())
+        )
+
+    # Calculate amounts and term note
+    old_amount = calculate_transaction_total(tx)
+    new_amount = updates.amount if updates.amount is not None else old_amount
+
+    if updates.term is not None:
+        monthly_payment = round(new_amount / Decimal(updates.term), 2)
+        target_envelope.note = f"{monthly_payment}/mo."
+        session.add(target_envelope)
+
+    # Adjust Credit Card balances
+    if target_account != old_account:
+        old_account.current_balance -= old_amount
+        target_account.current_balance += new_amount
+        session.add(old_account)
+        session.add(target_account)
+        tx.account = target_account
+    elif new_amount != old_amount:
+        target_account.current_balance += (new_amount - old_amount)
+        session.add(target_account)
+
+    # Update ledger splits in place
+    if new_amount != old_amount or target_envelope != current_envelope:
+        for entry in tx.entries:
+            entry.envelope = target_envelope
+            if entry.amount > Decimal("0"):
+                entry.amount = new_amount
+            else:
+                entry.amount = -1 * new_amount
+            session.add(entry)
+
+    session.add(tx)
+    session.commit()
+    session.refresh(tx)
+    return tx
+
+
 # Aliases
 get_transaction = get_transactions
 fetch_transactions = get_transactions
@@ -711,3 +874,4 @@ fetch_transaction_by_id = get_transaction_by_id
 get_transaction_detail = get_transaction_by_id
 fetch_transaction_detail = get_transaction_by_id
 modify_transaction = update_transaction
+modify_financed_transaction = update_financed_transaction

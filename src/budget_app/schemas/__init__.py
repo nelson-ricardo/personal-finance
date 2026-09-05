@@ -5,6 +5,7 @@ from budget_app.schemas.envelope import EnvelopeBase, EnvelopeTransfer
 from budget_app.schemas.ledger import LedgerBase, LedgerRequest, LedgerResponse
 from budget_app.schemas.transaction import (
     FinancedTransaction,
+    FinancedTransactionUpdateRequest,
     TransactionBase,
     TransactionDetailResponse,
     TransactionRequest,
@@ -26,6 +27,7 @@ __all__ = [
     "TransactionRequest",
     "TransactionUpdateRequest",
     "FinancedTransaction",
+    "FinancedTransactionUpdateRequest",
     "TransactionResponse",
     "TransactionDetailResponse",
 ]

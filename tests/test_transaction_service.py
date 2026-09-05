@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+
 import pytest
 
 from budget_app.models import Account, Envelope, Transaction
@@ -9,6 +10,7 @@ from budget_app.schemas import (
     AccountType,
     EnvelopeBase,
     FinancedTransaction,
+    FinancedTransactionUpdateRequest,
     LedgerRequest,
     TransactionRequest,
     TransactionType,
@@ -42,16 +44,12 @@ def transaction_set_up(session):
     cash_account.current_balance += Decimal("1000")
     session.add(cash_account)
 
-    test_envelope1 = get_or_create_envelope(session, "Groceries")
-    test_envelope2 = get_or_create_envelope(session, "Fun")
+    get_or_create_envelope(session, "Groceries")
+    get_or_create_envelope(session, "Fun")
 
     session.flush()
-    env1_addition = LedgerRequest(
-        amount=Decimal("500"), envelope_name="Groceries"
-    )
-    env2_addition = LedgerRequest(
-        amount=Decimal("500"), envelope_name="Fun"
-    )
+    env1_addition = LedgerRequest(amount=Decimal("500"), envelope_name="Groceries")
+    env2_addition = LedgerRequest(amount=Decimal("500"), envelope_name="Fun")
 
     tx = TransactionRequest(
         merchant="Testing",
@@ -71,9 +69,7 @@ class TestAddRegTransaction:
     def test_single_entry_cash(self, session, transaction_set_up):
         og_tx, cash_account = transaction_set_up
 
-        ledger_entry = LedgerRequest(
-            amount=Decimal("-50"), envelope_name="Groceries"
-        )
+        ledger_entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
         tx_req = TransactionRequest(
             merchant="Groceries",
             payment_method_name="Cash",
@@ -168,7 +164,9 @@ class TestAddRegTransaction:
             transaction_service.add_reg_transaction(session, tx_req)
 
     def test_no_envelope_raises_error(self, session, transaction_set_up):
-        entry = LedgerRequest(amount=Decimal("-50"), envelope_name="NonExistentEnvelope")
+        entry = LedgerRequest(
+            amount=Decimal("-50"), envelope_name="NonExistentEnvelope"
+        )
         tx_req = TransactionRequest(
             merchant="Store",
             payment_method_name="Cash",
@@ -190,7 +188,7 @@ class TestAddRegTransaction:
 
         with pytest.raises(
             ValueError,
-            match="financed transaction should be processed through add_financed_transaction",
+            match="financed transaction should be processed",
         ):
             transaction_service.add_reg_transaction(session, tx_req)
 
@@ -229,7 +227,9 @@ class TestAddFinancedTransaction:
         assert cc_account.current_balance == initial_balance + Decimal("1200")
 
     def test_success_custom_envelope(self, session):
-        cc_account = get_or_create_account(session, "Mastercard", AccountType.CREDIT_CARD)
+        cc_account = get_or_create_account(
+            session, "Mastercard", AccountType.CREDIT_CARD
+        )
         initial_balance = cc_account.current_balance
 
         financed_tx = FinancedTransaction(
@@ -255,7 +255,7 @@ class TestAddFinancedTransaction:
         assert cc_account.current_balance == initial_balance + Decimal("2400")
 
     def test_existing_envelope(self, session):
-        cc_account = get_or_create_account(session, "Visa", AccountType.CREDIT_CARD)
+        get_or_create_account(session, "Visa", AccountType.CREDIT_CARD)
         get_or_create_envelope(session, "Furniture")
 
         financed_tx = FinancedTransaction(
@@ -332,7 +332,9 @@ class TestAddFinancedTransaction:
             payment_method_name="Visa",
         )
 
-        with pytest.raises(ValueError, match="Amount financed has to be greater than 0"):
+        with pytest.raises(
+            ValueError, match="Amount financed has to be greater than 0"
+        ):
             transaction_service.add_financed_transaction(session, financed_tx)
 
     def test_amount_negative_raises_error(self, session):
@@ -345,7 +347,9 @@ class TestAddFinancedTransaction:
             payment_method_name="Visa",
         )
 
-        with pytest.raises(ValueError, match="Amount financed has to be greater than 0"):
+        with pytest.raises(
+            ValueError, match="Amount financed has to be greater than 0"
+        ):
             transaction_service.add_financed_transaction(session, financed_tx)
 
     def test_empty_merchant_raises_error(self, session):
@@ -399,7 +403,7 @@ class TestAddFinancedTransaction:
 class TestGetTransactions:
     @pytest.fixture
     def populated_db(self, session):
-        """Sets up accounts, envelopes, and a variety of transactions across dates and types."""
+        """Sets up accounts, envelopes, and transactions across dates and types."""
         today = date.today()
         current_year = today.year
         current_month = today.month
@@ -416,8 +420,8 @@ class TestGetTransactions:
         groceries = get_or_create_envelope(session, "Groceries")
         fun = get_or_create_envelope(session, "Fun")
         utilities = get_or_create_envelope(session, "Utilities")
-        cc_envelope = get_or_create_envelope(session, "Credit Card Payment")
-        unassigned = get_or_create_envelope(session, "Unassigned")
+        get_or_create_envelope(session, "Credit Card Payment")
+        get_or_create_envelope(session, "Unassigned")
         session.commit()
 
         # 1. Income on 5th of system month
@@ -427,7 +431,7 @@ class TestGetTransactions:
         income_tx.logged_date = date(current_year, current_month, 5)
         session.add(income_tx)
 
-        # 2. Cash split expense on 10th of system month (Walmart: $20 Fun + $20 Groceries = $40)
+        # 2. Cash split on 10th (Walmart: $20 Fun + $20 Groceries = $40)
         walmart_split = TransactionRequest(
             merchant="Walmart",
             logged_date=date(current_year, current_month, 10),
@@ -441,7 +445,7 @@ class TestGetTransactions:
         )
         walmart_tx = transaction_service.add_reg_transaction(session, walmart_split)
 
-        # 3. Credit Card split expense on 15th of system month (Target: $30 Groceries + $70 Fun = $100)
+        # 3. Credit Card split on 15th (Target: $30 Groceries + $70 Fun = $100)
         target_split = TransactionRequest(
             merchant="Target",
             logged_date=date(current_year, current_month, 15),
@@ -465,7 +469,9 @@ class TestGetTransactions:
             payment_method_name="Visa",
             note="MacBook Air",
         )
-        financed_tx = transaction_service.add_financed_transaction(session, financed_req)
+        financed_tx = transaction_service.add_financed_transaction(
+            session, financed_req
+        )
 
         # 5. Envelope transfer on 22nd of system month ($50 from Fun to Utilities)
         # Fund Unassigned first, transfer to Fun so Fun has positive balance
@@ -480,8 +486,6 @@ class TestGetTransactions:
         transfer_tx.logged_date = date(current_year, current_month, 22)
         session.add(transfer_tx)
 
-
-
         # 6. Out-of-default-range transactions:
         # Early transaction on 1st of month (before 3rd)
         early_req = TransactionRequest(
@@ -489,9 +493,7 @@ class TestGetTransactions:
             logged_date=date(current_year, current_month, 1),
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[
-                LedgerRequest(amount=Decimal("-5"), envelope_name="Fun")
-            ],
+            ledger_entries=[LedgerRequest(amount=Decimal("-5"), envelope_name="Fun")],
         )
         early_tx = transaction_service.add_reg_transaction(session, early_req)
 
@@ -501,9 +503,7 @@ class TestGetTransactions:
             logged_date=date(current_year, current_month, 29),
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[
-                LedgerRequest(amount=Decimal("-45"), envelope_name="Fun")
-            ],
+            ledger_entries=[LedgerRequest(amount=Decimal("-45"), envelope_name="Fun")],
         )
         late_tx = transaction_service.add_reg_transaction(session, late_req)
 
@@ -523,14 +523,15 @@ class TestGetTransactions:
             "late_tx": late_tx,
         }
 
-    def test_default_fetch_filters_transfers_and_date_range(self, session, populated_db):
-        """Default fetch should exclude transfers and only return transactions between 3rd and 28th."""
+    def test_default_fetch_filters_transfers_and_date_range(
+        self, session, populated_db
+    ):
+        """Default fetch excludes transfers and limits dates to 3rd through 28th."""
         results = transaction_service.get_transactions(session)
 
         merchants = [tx.merchant for tx in results]
         # In default date range (3rd to 28th):
-        # 5th (Paycheck - INCOME), 10th (Walmart - EXPENSE), 15th (Target - EXPENSE), 20th (Apple Store - FINANCED),
-        # Fund Fun (INCOME).
+        # 5th (Paycheck), 10th (Walmart), 15th (Target), 20th (Apple Store)
         # Transfers (22nd) and out-of-range (1st, 29th) should NOT be in results.
         assert "Walmart" in merchants
         assert "Target" in merchants
@@ -538,7 +539,9 @@ class TestGetTransactions:
         assert "Paycheck" in merchants
         assert "Early Coffee" not in merchants
         assert "Late Dinner" not in merchants
-        assert not any(tx.transaction_type == TransactionType.TRANSFER for tx in results)
+        assert not any(
+            tx.transaction_type == TransactionType.TRANSFER for tx in results
+        )
 
     def test_split_cash_transaction_total(self, session, populated_db):
         """Split cash transaction ($20 Fun + $20 Groceries) should report total $40."""
@@ -554,8 +557,10 @@ class TestGetTransactions:
         assert walmart.total_amount == Decimal("40")
         assert walmart.payment_method_name == "Cash"
 
-    def test_credit_card_balancing_entry_excluded_from_total(self, session, populated_db):
-        """CC transaction ($30 + $70) should report total $100, filtering out balancing entry (+100)."""
+    def test_credit_card_balancing_entry_excluded_from_total(
+        self, session, populated_db
+    ):
+        """CC tx ($30 + $70) reports total $100, filtering out balancing entry."""
         results = transaction_service.get_transactions(
             session,
             date_from=date(date.today().year, date.today().month, 15),
@@ -568,7 +573,7 @@ class TestGetTransactions:
         assert target.payment_method_name == "Visa"
 
     def test_financed_transaction_positive_total(self, session, populated_db):
-        """Financed transaction (+1200, -1200) should report positive financed total $1200."""
+        """Financed tx (+1200, -1200) reports positive financed total $1200."""
         results = transaction_service.get_transactions(
             session,
             date_from=date(date.today().year, date.today().month, 20),
@@ -581,18 +586,18 @@ class TestGetTransactions:
         assert apple.transaction_type == TransactionType.FINANCED
 
     def test_filter_by_envelope(self, session, populated_db):
-        """Filtering by envelope name returns all transactions touching that envelope."""
+        """Filtering by envelope returns all transactions touching that envelope."""
         # Both Walmart ($20) and Target ($30) used Groceries
-        results = transaction_service.get_transactions(
-            session, envelope="Groceries"
-        )
+        results = transaction_service.get_transactions(session, envelope="Groceries")
         merchants = [tx.merchant for tx in results]
         assert "Walmart" in merchants
         assert "Target" in merchants
         assert "Apple Store" not in merchants
 
-    def test_filter_by_cc_payment_envelope_excludes_balancing_entries(self, session, populated_db):
-        """Filtering by 'Credit Card Payment' envelope should NOT return regular CC expense transactions."""
+    def test_filter_by_cc_payment_envelope_excludes_balancing_entries(
+        self, session, populated_db
+    ):
+        """Filtering by CC Payment envelope excludes regular CC expenses."""
         results = transaction_service.get_transactions(
             session, envelope="Credit Card Payment"
         )
@@ -600,7 +605,7 @@ class TestGetTransactions:
         assert "Target" not in merchants
 
     def test_filter_by_account(self, session, populated_db):
-        """Filtering by account string name returns only transactions using that payment method."""
+        """Filtering by account returns only transactions using that payment method."""
         cash_results = transaction_service.get_transactions(session, account="Cash")
         assert all(tx.payment_method_name == "Cash" for tx in cash_results)
 
@@ -612,12 +617,16 @@ class TestGetTransactions:
         assert "Walmart" not in visa_merchants
 
     def test_filter_by_custom_date_range(self, session, populated_db):
-        """Passing custom date_from and date_to captures transactions including early and late ones."""
+        """Custom date_from and date_to captures transactions including out-of-range."""
         today = date.today()
         all_results = transaction_service.get_transactions(
             session,
             date_from=date(today.year, today.month, 1),
-            date_to=date(today.year, today.month, 31 if today.month in [1, 3, 5, 7, 8, 10, 12] else 30),
+            date_to=date(
+                today.year,
+                today.month,
+                31 if today.month in [1, 3, 5, 7, 8, 10, 12] else 30,
+            ),
         )
         merchants = [tx.merchant for tx in all_results]
         assert "Early Coffee" in merchants
@@ -629,7 +638,7 @@ class TestGetTransactions:
         assert len(results) == 2
 
     def test_explicit_transfer_transaction_type(self, session, populated_db):
-        """When transaction_type=TransactionType.TRANSFER is requested, transfers are returned."""
+        """When transaction_type=TRANSFER is requested, transfers are returned."""
         results = transaction_service.get_transactions(
             session, transaction_type=TransactionType.TRANSFER
         )
@@ -637,7 +646,6 @@ class TestGetTransactions:
         assert all(tx.transaction_type == TransactionType.TRANSFER for tx in results)
         totals = {tx.total for tx in results}
         assert Decimal("50") in totals or Decimal("200") in totals
-
 
     def test_filter_by_multiple_transaction_types(self, session, populated_db):
         """Passing a list of transaction types from enum filters accurately."""
@@ -651,7 +659,7 @@ class TestGetTransactions:
         assert TransactionType.INCOME not in types
 
     def test_alias_get_transaction_and_fetch_transactions(self, session, populated_db):
-        """get_transaction and fetch_transactions aliases produce the exact same results as get_transactions."""
+        """Aliases produce the exact same results as get_transactions."""
         res1 = transaction_service.get_transactions(session)
         res2 = transaction_service.get_transaction(session)
         res3 = transaction_service.fetch_transactions(session)
@@ -677,18 +685,21 @@ class TestGetTransactions:
             transaction_service.get_transactions(session, envelope="GhostEnvelope")
 
         with pytest.raises(ValueError, match="Envelope must be a string"):
-            transaction_service.get_transactions(session, envelope=123)
+            transaction_service.get_transactions(session, envelope=123)  # type: ignore
 
     def test_nonexistent_account_raises_error(self, session):
         with pytest.raises(ValueError, match="Account 'GhostAccount' does not exist"):
             transaction_service.get_transactions(session, account="GhostAccount")
 
         with pytest.raises(ValueError, match="Account must be a string"):
-            transaction_service.get_transactions(session, account=123)
+            transaction_service.get_transactions(session, account=123)  # type: ignore
 
     def test_invalid_transaction_type_raises_error(self, session):
         with pytest.raises(ValueError, match="Invalid transaction type"):
-            transaction_service.get_transactions(session, transaction_type="INVALID_TYPE")
+            transaction_service.get_transactions(
+                session,
+                transaction_type="INVALID_TYPE",  # type: ignore
+            )
 
     def test_sorting_order_descending(self, session, populated_db):
         """Transactions should be returned in descending order by logged_date."""
@@ -723,27 +734,39 @@ class TestDeleteTransaction:
     def test_reverse_cash_expense(self, session):
         # 1. Add income and allocate to Groceries
         envelope_service.add_to_cash(session, Decimal("500"), "Income")
-        groceries = envelope_service.create_envelope(session, EnvelopeBase(name="Groceries"))
-        envelope_service.assign_to_envelope(session, destination="Groceries", amount=Decimal("200"))
+        groceries = envelope_service.create_envelope(
+            session, EnvelopeBase(name="Groceries")
+        )
+        envelope_service.assign_to_envelope(
+            session, destination="Groceries", amount=Decimal("200")
+        )
 
         # Cash balance = 500, Groceries balance = 200
         cash = account_repo.get_account_by_name(session, "Cash")
+        assert cash is not None
         assert cash.current_balance == Decimal("500")
-        assert envelope_repo.get_balance_for_envelope(session, groceries) == Decimal("200")
+        assert envelope_repo.get_balance_for_envelope(session, groceries) == Decimal(
+            "200"
+        )
 
         # 2. Make an expense of $50 from Groceries
         expense_req = TransactionRequest(
             merchant="Trader Joe's",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")],
+            ledger_entries=[
+                LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
+            ],
         )
         tx = transaction_service.add_reg_transaction(session, expense_req)
         session.refresh(cash)
         assert cash.current_balance == Decimal("450")
-        assert envelope_repo.get_balance_for_envelope(session, groceries) == Decimal("150")
+        assert envelope_repo.get_balance_for_envelope(session, groceries) == Decimal(
+            "150"
+        )
 
         # 3. Delete / Reverse the transaction
+        assert tx.id is not None
         rev_tx = transaction_service.delete_transaction(session, tx.id)
 
         assert rev_tx is not None
@@ -755,11 +778,13 @@ class TestDeleteTransaction:
         # Balances restored
         session.refresh(cash)
         assert cash.current_balance == Decimal("500")
-        assert envelope_repo.get_balance_for_envelope(session, groceries) == Decimal("200")
+        assert envelope_repo.get_balance_for_envelope(session, groceries) == Decimal(
+            "200"
+        )
 
         # Original transaction note updated
         session.refresh(tx)
-        assert "[REVERSED]" in tx.note
+        assert tx.note is not None and "[REVERSED]" in tx.note
 
     def test_reverse_credit_card_expense(self, session):
         # 1. Create Credit Card and Dining envelope
@@ -768,48 +793,69 @@ class TestDeleteTransaction:
         )
         dining = envelope_service.create_envelope(session, EnvelopeBase(name="Dining"))
         envelope_service.add_to_cash(session, Decimal("500"), "Income")
-        envelope_service.assign_to_envelope(session, destination="Dining", amount=Decimal("150"))
+        envelope_service.assign_to_envelope(
+            session, destination="Dining", amount=Decimal("150")
+        )
 
-        cc_payment_env = envelope_repo.get_envelope_by_name(session, "Credit Card Payment")
+        cc_payment_env = envelope_repo.get_envelope_by_name(
+            session, "Credit Card Payment"
+        )
+        assert cc_payment_env is not None
 
         # 2. Spend $60 on Visa from Dining
         expense_req = TransactionRequest(
             merchant="Chipotle",
             payment_method_name="Visa",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[LedgerRequest(amount=Decimal("-60"), envelope_name="Dining")],
+            ledger_entries=[
+                LedgerRequest(amount=Decimal("-60"), envelope_name="Dining")
+            ],
         )
         tx = transaction_service.add_reg_transaction(session, expense_req)
 
         session.refresh(visa)
         assert visa.current_balance == Decimal("60")
         assert envelope_repo.get_balance_for_envelope(session, dining) == Decimal("90")
-        assert envelope_repo.get_balance_for_envelope(session, cc_payment_env) == Decimal("60")
+        assert envelope_repo.get_balance_for_envelope(
+            session, cc_payment_env
+        ) == Decimal("60")
 
         # 3. Reverse the credit card expense
+        assert tx.id is not None
         rev_tx = transaction_service.delete_transaction(session, tx.id)
 
         assert rev_tx.transaction_type == TransactionType.REVERSAL
         session.refresh(visa)
         assert visa.current_balance == Decimal("0")  # Debt removed
-        assert envelope_repo.get_balance_for_envelope(session, dining) == Decimal("150")  # Dining restored
-        assert envelope_repo.get_balance_for_envelope(session, cc_payment_env) == Decimal("0")  # CC payment reduced
+        assert envelope_repo.get_balance_for_envelope(session, dining) == Decimal(
+            "150"
+        )  # Dining restored
+        assert envelope_repo.get_balance_for_envelope(
+            session, cc_payment_env
+        ) == Decimal("0")  # CC payment reduced
 
     def test_reverse_income_transaction(self, session):
         # 1. Add income
         income_tx = envelope_service.add_to_cash(session, Decimal("1000"), "Paycheck")
         cash = account_repo.get_account_by_name(session, "Cash")
         unassigned = envelope_repo.get_envelope_by_name(session, "Unassigned")
+        assert cash is not None
+        assert unassigned is not None
 
         assert cash.current_balance == Decimal("1000")
-        assert envelope_repo.get_balance_for_envelope(session, unassigned) == Decimal("1000")
+        assert envelope_repo.get_balance_for_envelope(session, unassigned) == Decimal(
+            "1000"
+        )
 
         # 2. Reverse the income transaction
-        rev_tx = transaction_service.delete_transaction(session, income_tx.id)
+        assert income_tx.id is not None
+        transaction_service.delete_transaction(session, income_tx.id)
 
         session.refresh(cash)
         assert cash.current_balance == Decimal("0")  # Income deducted from cash
-        assert envelope_repo.get_balance_for_envelope(session, unassigned) == Decimal("0")
+        assert envelope_repo.get_balance_for_envelope(session, unassigned) == Decimal(
+            "0"
+        )
 
     def test_reverse_financed_transaction(self, session):
         # 1. Create Credit Card and Financed transaction
@@ -823,12 +869,15 @@ class TestDeleteTransaction:
             payment_method_name="Visa",
             envelope_name="MacBook",
         )
-        financed_tx = transaction_service.add_financed_transaction(session, financed_req)
+        financed_tx = transaction_service.add_financed_transaction(
+            session, financed_req
+        )
 
         session.refresh(visa)
         assert visa.current_balance == Decimal("1200")
 
         # 2. Reverse the financed transaction
+        assert financed_tx.id is not None
         rev_tx = transaction_service.delete_transaction(session, financed_tx.id)
 
         session.refresh(visa)
@@ -837,18 +886,23 @@ class TestDeleteTransaction:
 
     def test_reverse_already_reversed_raises_error(self, session):
         envelope_service.add_to_cash(session, Decimal("200"), "Income")
-        groceries = envelope_service.create_envelope(session, EnvelopeBase(name="Groceries"))
-        envelope_service.assign_to_envelope(session, destination="Groceries", amount=Decimal("100"))
+        envelope_service.create_envelope(session, EnvelopeBase(name="Groceries"))
+        envelope_service.assign_to_envelope(
+            session, destination="Groceries", amount=Decimal("100")
+        )
 
         expense_req = TransactionRequest(
             merchant="Market",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[LedgerRequest(amount=Decimal("-40"), envelope_name="Groceries")],
+            ledger_entries=[
+                LedgerRequest(amount=Decimal("-40"), envelope_name="Groceries")
+            ],
         )
         tx = transaction_service.add_reg_transaction(session, expense_req)
 
         # First reversal succeeds
+        assert tx.id is not None
         rev_tx = transaction_service.delete_transaction(session, tx.id)
 
         # Attempting to reverse the original transaction again fails
@@ -856,31 +910,41 @@ class TestDeleteTransaction:
             transaction_service.delete_transaction(session, tx.id)
 
         # Attempting to reverse the reversal transaction itself fails
+        assert rev_tx.id is not None
         with pytest.raises(ValueError, match="has already been reversed"):
             transaction_service.delete_transaction(session, rev_tx.id)
 
     def test_reverse_nonexistent_transaction_raises_error(self, session):
-        with pytest.raises(ValueError, match="Transaction with id: 99999 does not exist"):
+        with pytest.raises(
+            ValueError, match="Transaction with id: 99999 does not exist"
+        ):
             transaction_service.delete_transaction(session, 99999)
 
     def test_reversal_filtered_in_get_transactions(self, session):
         # Create an expense and reverse it
         envelope_service.add_to_cash(session, Decimal("300"), "Income")
-        groceries = envelope_service.create_envelope(session, EnvelopeBase(name="Groceries"))
-        envelope_service.assign_to_envelope(session, destination="Groceries", amount=Decimal("100"))
+        envelope_service.create_envelope(session, EnvelopeBase(name="Groceries"))
+        envelope_service.assign_to_envelope(
+            session, destination="Groceries", amount=Decimal("100")
+        )
 
         expense_req = TransactionRequest(
             merchant="Costco",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")],
+            ledger_entries=[
+                LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
+            ],
         )
         tx = transaction_service.add_reg_transaction(session, expense_req)
+        assert tx.id is not None
         rev_tx = transaction_service.delete_transaction(session, tx.id)
 
-        # 1. Default get_transactions should exclude both the REVERSAL transaction and the reversed transaction
+        # 1. Exclude both REVERSAL transaction and reversed transaction
         default_results = transaction_service.get_transactions(session)
-        assert not any(t.transaction_type == TransactionType.REVERSAL for t in default_results)
+        assert not any(
+            t.transaction_type == TransactionType.REVERSAL for t in default_results
+        )
         assert not any(t.id == tx.id for t in default_results)
         assert not any(t.id == rev_tx.id for t in default_results)
 
@@ -889,10 +953,14 @@ class TestDeleteTransaction:
             session, transaction_type=TransactionType.REVERSAL
         )
         assert any(t.id == rev_tx.id for t in reversal_results)
-        assert all(t.transaction_type == TransactionType.REVERSAL for t in reversal_results)
+        assert all(
+            t.transaction_type == TransactionType.REVERSAL for t in reversal_results
+        )
 
         # 3. include_reversed=True should include the reversed transaction
-        all_results = transaction_service.get_transactions(session, include_reversed=True)
+        all_results = transaction_service.get_transactions(
+            session, include_reversed=True
+        )
         assert any(t.id == tx.id for t in all_results)
 
 
@@ -900,10 +968,16 @@ class TestGetTransactionById:
     def test_get_single_split_cash_transaction_details(self, session):
         # 1. Setup Cash and envelopes
         envelope_service.add_to_cash(session, Decimal("500"), "Income")
-        groceries = envelope_service.create_envelope(session, EnvelopeBase(name="Groceries"))
+        groceries = envelope_service.create_envelope(
+            session, EnvelopeBase(name="Groceries")
+        )
         fun = envelope_service.create_envelope(session, EnvelopeBase(name="Fun"))
-        envelope_service.assign_to_envelope(session, destination="Groceries", amount=Decimal("100"))
-        envelope_service.assign_to_envelope(session, destination="Fun", amount=Decimal("100"))
+        envelope_service.assign_to_envelope(
+            session, destination="Groceries", amount=Decimal("100")
+        )
+        envelope_service.assign_to_envelope(
+            session, destination="Fun", amount=Decimal("100")
+        )
 
         # 2. Create a split expense ($30 Groceries, $20 Fun)
         split_req = TransactionRequest(
@@ -919,6 +993,7 @@ class TestGetTransactionById:
         tx = transaction_service.add_reg_transaction(session, split_req)
 
         # 3. Fetch transaction detail by ID
+        assert tx.id is not None
         detail = transaction_service.get_transaction_by_id(session, tx.id)
 
         assert detail is not None
@@ -947,21 +1022,26 @@ class TestGetTransactionById:
                 assert e.envelope_id == fun.id
 
     def test_get_single_credit_card_transaction_details(self, session):
-        visa = account_service.create_account(
+        account_service.create_account(
             session, AccountBase(name="Visa", account_type=AccountType.CREDIT_CARD)
         )
-        dining = envelope_service.create_envelope(session, EnvelopeBase(name="Dining"))
+        envelope_service.create_envelope(session, EnvelopeBase(name="Dining"))
         envelope_service.add_to_cash(session, Decimal("500"), "Income")
-        envelope_service.assign_to_envelope(session, destination="Dining", amount=Decimal("100"))
+        envelope_service.assign_to_envelope(
+            session, destination="Dining", amount=Decimal("100")
+        )
 
         expense_req = TransactionRequest(
             merchant="Olive Garden",
             payment_method_name="Visa",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[LedgerRequest(amount=Decimal("-75"), envelope_name="Dining")],
+            ledger_entries=[
+                LedgerRequest(amount=Decimal("-75"), envelope_name="Dining")
+            ],
         )
         tx = transaction_service.add_reg_transaction(session, expense_req)
 
+        assert tx.id is not None
         detail = transaction_service.get_transaction_by_id(session, tx.id)
 
         assert detail.id == tx.id
@@ -974,7 +1054,7 @@ class TestGetTransactionById:
         assert entry_map["Credit Card Payment"] == Decimal("75")
 
     def test_get_single_financed_transaction_details(self, session):
-        visa = account_service.create_account(
+        account_service.create_account(
             session, AccountBase(name="Visa", account_type=AccountType.CREDIT_CARD)
         )
         financed_req = FinancedTransaction(
@@ -984,8 +1064,11 @@ class TestGetTransactionById:
             payment_method_name="Visa",
             envelope_name="TV Financing",
         )
-        financed_tx = transaction_service.add_financed_transaction(session, financed_req)
+        financed_tx = transaction_service.add_financed_transaction(
+            session, financed_req
+        )
 
+        assert financed_tx.id is not None
         detail = transaction_service.get_transaction_by_id(session, financed_tx.id)
 
         assert detail.id == financed_tx.id
@@ -999,7 +1082,10 @@ class TestGetTransactionById:
 
     def test_aliases_fetch_transaction_by_id_and_detail(self, session):
         envelope_service.add_to_cash(session, Decimal("100"), "Cash Gift")
-        income = account_repo.get_account_by_name(session, "Cash").transactions[0]
+        cash = account_repo.get_account_by_name(session, "Cash")
+        assert cash is not None and cash.transactions
+        income = cash.transactions[0]
+        assert income.id is not None
 
         res1 = transaction_service.get_transaction_by_id(session, income.id)
         res2 = transaction_service.fetch_transaction_by_id(session, income.id)
@@ -1010,7 +1096,9 @@ class TestGetTransactionById:
         assert len(res1.entries) == len(res2.entries) == len(res3.entries)
 
     def test_get_nonexistent_transaction_by_id_raises_error(self, session):
-        with pytest.raises(ValueError, match="Transaction with id: 99999 does not exist"):
+        with pytest.raises(
+            ValueError, match="Transaction with id: 99999 does not exist"
+        ):
             transaction_service.get_transaction_by_id(session, 99999)
 
 
@@ -1034,6 +1122,7 @@ class TestUpdateTransaction:
             note="Weekly grocery trip",
             logged_date=new_date,
         )
+        assert tx.id is not None
         updated_tx = transaction_service.update_transaction(session, tx.id, update_req)
 
         assert updated_tx.id == tx.id
@@ -1062,6 +1151,7 @@ class TestUpdateTransaction:
             merchant="Trader Joe's #456",
             note="Reconciled receipt verified",
         )
+        assert tx.id is not None
         updated_tx = transaction_service.update_transaction(session, tx.id, update_req)
 
         assert updated_tx.merchant == "Trader Joe's #456"
@@ -1083,7 +1173,10 @@ class TestUpdateTransaction:
         new_entry = LedgerRequest(amount=Decimal("-60"), envelope_name="Groceries")
         update_req = TransactionUpdateRequest(ledger_entries=[new_entry])
 
-        with pytest.raises(ValueError, match="Cannot modify ledger entries of a reconciled transaction"):
+        assert tx.id is not None
+        with pytest.raises(
+            ValueError, match="Cannot modify ledger entries of a reconciled transaction"
+        ):
             transaction_service.update_transaction(session, tx.id, update_req)
 
     def test_reconciled_payment_method_blocked(self, session, transaction_set_up):
@@ -1101,7 +1194,11 @@ class TestUpdateTransaction:
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
         update_req = TransactionUpdateRequest(payment_method_name="Visa")
-        with pytest.raises(ValueError, match="Cannot change the payment method of a reconciled transaction"):
+        assert tx.id is not None
+        with pytest.raises(
+            ValueError,
+            match="Cannot change the payment method of a reconciled transaction",
+        ):
             transaction_service.update_transaction(session, tx.id, update_req)
 
     def test_update_split_amounts_cash(self, session, transaction_set_up):
@@ -1119,12 +1216,15 @@ class TestUpdateTransaction:
         # Update expense from $50 to $80
         new_entry = LedgerRequest(amount=Decimal("-80"), envelope_name="Groceries")
         update_req = TransactionUpdateRequest(ledger_entries=[new_entry])
+        assert tx.id is not None
         updated_tx = transaction_service.update_transaction(session, tx.id, update_req)
 
         assert cash_account.current_balance == Decimal("920")
         assert len(updated_tx.entries) == 1
         assert updated_tx.entries[0].amount == Decimal("-80")
-        assert transaction_service.calculate_transaction_total(updated_tx) == Decimal("80")
+        assert transaction_service.calculate_transaction_total(updated_tx) == Decimal(
+            "80"
+        )
 
     def test_update_split_envelope_category(self, session, transaction_set_up):
         _, cash_account = transaction_set_up
@@ -1139,27 +1239,30 @@ class TestUpdateTransaction:
 
         groceries_env = envelope_repo.get_envelope_by_name(session, "Groceries")
         fun_env = envelope_repo.get_envelope_by_name(session, "Fun")
+        assert groceries_env is not None
+        assert fun_env is not None
 
         # Before update: Groceries had 500 - 50 = 450; Fun had 500
         assert envelope_repo.get_balance_for_envelope(
             session, groceries_env
         ) == Decimal("450")
-        assert envelope_repo.get_balance_for_envelope(
-            session, fun_env
-        ) == Decimal("500")
+        assert envelope_repo.get_balance_for_envelope(session, fun_env) == Decimal(
+            "500"
+        )
 
         # Update category from Groceries to Fun
         new_entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Fun")
         update_req = TransactionUpdateRequest(ledger_entries=[new_entry])
+        assert tx.id is not None
         transaction_service.update_transaction(session, tx.id, update_req)
 
         # After update: Groceries restored to 500, Fun deducted to 450
         assert envelope_repo.get_balance_for_envelope(
             session, groceries_env
         ) == Decimal("500")
-        assert envelope_repo.get_balance_for_envelope(
-            session, fun_env
-        ) == Decimal("450")
+        assert envelope_repo.get_balance_for_envelope(session, fun_env) == Decimal(
+            "450"
+        )
         assert cash_account.current_balance == Decimal("950")
 
     def test_update_payment_method_cash_to_credit_card(
@@ -1183,15 +1286,19 @@ class TestUpdateTransaction:
 
         # Update payment method from Cash to Visa
         update_req = TransactionUpdateRequest(payment_method_name="Visa")
+        assert tx.id is not None
         updated_tx = transaction_service.update_transaction(session, tx.id, update_req)
 
         # Cash balance refunded to 1000, CC balance increases by 60
         assert cash_account.current_balance == Decimal("1000")
         assert cc_account.current_balance == Decimal("60")
+        assert updated_tx.account is not None
         assert updated_tx.account.name == "Visa"
         # CC expense has split + balancing entry
         assert len(updated_tx.entries) == 2
-        entry_envelopes = {e.envelope.name for e in updated_tx.entries}
+        entry_envelopes = {
+            e.envelope.name for e in updated_tx.entries if e.envelope is not None
+        }
         assert entry_envelopes == {"Groceries", "Credit Card Payment"}
 
     def test_update_payment_method_credit_card_to_cash(
@@ -1215,14 +1322,17 @@ class TestUpdateTransaction:
 
         # Update payment method from Visa to Cash
         update_req = TransactionUpdateRequest(payment_method_name="Cash")
+        assert tx.id is not None
         updated_tx = transaction_service.update_transaction(session, tx.id, update_req)
 
         # CC balance reduced back to 0, Cash balance deducted to 925
         assert cc_account.current_balance == Decimal("0")
         assert cash_account.current_balance == Decimal("925")
+        assert updated_tx.account is not None
         assert updated_tx.account.name == "Cash"
         # Only 1 entry (balancing entry removed)
         assert len(updated_tx.entries) == 1
+        assert updated_tx.entries[0].envelope is not None
         assert updated_tx.entries[0].envelope.name == "Groceries"
         assert updated_tx.entries[0].amount == Decimal("-75")
 
@@ -1249,16 +1359,18 @@ class TestUpdateTransaction:
                 LedgerRequest(amount=Decimal("-20"), envelope_name="Fun"),
             ],
         )
+        assert tx.id is not None
         updated_tx = transaction_service.update_transaction(session, tx.id, update_req)
 
         assert cash_account.current_balance == Decimal("1000")
         assert cc_account.current_balance == Decimal("50")
+        assert updated_tx.account is not None
         assert updated_tx.account.name == "Visa"
         assert updated_tx.merchant == "Target Superstore"
         assert len(updated_tx.entries) == 3  # Groceries + Fun + CC Payment balancing
-        assert transaction_service.calculate_transaction_total(
-            updated_tx
-        ) == Decimal("50")
+        assert transaction_service.calculate_transaction_total(updated_tx) == Decimal(
+            "50"
+        )
 
     def test_update_financed_transaction_raises_error(self, session):
         get_or_create_account(session, "Visa", AccountType.CREDIT_CARD)
@@ -1273,6 +1385,7 @@ class TestUpdateTransaction:
         )
 
         update_req = TransactionUpdateRequest(merchant="Apple Store New")
+        assert financed_tx.id is not None
         with pytest.raises(
             ValueError, match="Financed transactions cannot be modified"
         ):
@@ -1289,6 +1402,7 @@ class TestUpdateTransaction:
             ledger_entries=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
+        assert tx.id is not None
         transaction_service.reverse_transaction(session, tx.id)
 
         update_req = TransactionUpdateRequest(merchant="New Name")
@@ -1304,9 +1418,7 @@ class TestUpdateTransaction:
         ):
             transaction_service.update_transaction(session, 99999, update_req)
 
-    def test_update_with_empty_merchant_raises_error(
-        self, session, transaction_set_up
-    ):
+    def test_update_with_empty_merchant_raises_error(self, session, transaction_set_up):
         entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
         tx_req = TransactionRequest(
             merchant="Store",
@@ -1317,6 +1429,7 @@ class TestUpdateTransaction:
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
         update_req = TransactionUpdateRequest(merchant="   ")
+        assert tx.id is not None
         with pytest.raises(ValueError, match="Merchant name cannot be empty"):
             transaction_service.update_transaction(session, tx.id, update_req)
 
@@ -1333,6 +1446,7 @@ class TestUpdateTransaction:
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
         update_req = TransactionUpdateRequest(ledger_entries=[])
+        assert tx.id is not None
         with pytest.raises(
             ValueError, match="Transaction must have at least one ledger entry"
         ):
@@ -1351,6 +1465,7 @@ class TestUpdateTransaction:
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
         update_req = TransactionUpdateRequest(payment_method_name="NonExistentBank")
+        assert tx.id is not None
         with pytest.raises(ValueError, match="Account NonExistentBank does not exist"):
             transaction_service.update_transaction(session, tx.id, update_req)
 
@@ -1366,10 +1481,9 @@ class TestUpdateTransaction:
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
-        alien_entry = LedgerRequest(
-            amount=Decimal("-50"), envelope_name="AlienBudget"
-        )
+        alien_entry = LedgerRequest(amount=Decimal("-50"), envelope_name="AlienBudget")
         update_req = TransactionUpdateRequest(ledger_entries=[alien_entry])
+        assert tx.id is not None
         with pytest.raises(ValueError, match="Envelope AlienBudget does not exist"):
             transaction_service.update_transaction(session, tx.id, update_req)
 
@@ -1384,15 +1498,289 @@ class TestUpdateTransaction:
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
         update_req = TransactionUpdateRequest(note="Updated via alias")
+        assert tx.id is not None
         updated_tx = transaction_service.modify_transaction(session, tx.id, update_req)
         assert updated_tx.note == "Updated via alias"
 
 
+class TestUpdateFinancedTransaction:
+    @pytest.fixture
+    def financed_setup(self, session):
+        cc_account = get_or_create_account(session, "Visa", AccountType.CREDIT_CARD)
+        financed_tx = transaction_service.add_financed_transaction(
+            session,
+            FinancedTransaction(
+                merchant="Apple Store",
+                amount=Decimal("1200"),
+                term=12,
+                payment_method_name="Visa",
+            ),
+        )
+        return (financed_tx, cc_account)
 
+    def test_update_metadata_only(self, session, financed_setup):
+        financed_tx, cc_account = financed_setup
+        assert cc_account.current_balance == Decimal("1200")
 
+        new_date = date(2026, 8, 20)
+        update_req = FinancedTransactionUpdateRequest(
+            merchant="Apple Fifth Ave",
+            note="MacBook Pro M3",
+            logged_date=new_date,
+        )
+        updated_tx = transaction_service.update_financed_transaction(
+            session, financed_tx.id, update_req
+        )
 
+        assert updated_tx.merchant == "Apple Fifth Ave"
+        assert updated_tx.note == "MacBook Pro M3"
+        assert updated_tx.logged_date == new_date
+        assert cc_account.current_balance == Decimal("1200")
+        assert transaction_service.calculate_transaction_total(updated_tx) == Decimal(
+            "1200"
+        )
 
+    def test_update_term_only(self, session, financed_setup):
+        financed_tx, cc_account = financed_setup
+        envelope = financed_tx.entries[0].envelope
+        assert envelope.note == "100.00/mo."
 
+        # Update term from 12 to 24 months
+        update_req = FinancedTransactionUpdateRequest(term=24)
+        updated_tx = transaction_service.update_financed_transaction(
+            session, financed_tx.id, update_req
+        )
 
+        # CC balance stays $1200, but monthly payment becomes $50.00
+        assert cc_account.current_balance == Decimal("1200")
+        session.refresh(envelope)
+        assert envelope.note == "50.00/mo."
+        assert transaction_service.calculate_transaction_total(updated_tx) == Decimal(
+            "1200"
+        )
 
+    def test_update_amount_and_term(self, session, financed_setup):
+        financed_tx, cc_account = financed_setup
+        envelope = financed_tx.entries[0].envelope
 
+        # Update amount to $1800 and term to 18 months ($100/mo)
+        update_req = FinancedTransactionUpdateRequest(
+            amount=Decimal("1800"),
+            term=18,
+        )
+        updated_tx = transaction_service.update_financed_transaction(
+            session, financed_tx.id, update_req
+        )
+
+        assert cc_account.current_balance == Decimal("1800")
+        session.refresh(envelope)
+        assert envelope.note == "100.00/mo."
+        assert len(updated_tx.entries) == 2
+        amounts = {e.amount for e in updated_tx.entries}
+        assert amounts == {Decimal("1800"), Decimal("-1800")}
+        assert transaction_service.calculate_transaction_total(updated_tx) == Decimal(
+            "1800"
+        )
+
+    def test_update_amount_without_term_raises_error(self, session, financed_setup):
+        financed_tx, _ = financed_setup
+
+        update_req = FinancedTransactionUpdateRequest(amount=Decimal("1500"))
+        with pytest.raises(
+            ValueError,
+            match="Term must be provided when modifying the financed amount",
+        ):
+            transaction_service.update_financed_transaction(
+                session, financed_tx.id, update_req
+            )
+
+    def test_reconciled_metadata_allowed(self, session, financed_setup):
+        financed_tx, _ = financed_setup
+        financed_tx.is_reconciled = True
+        session.add(financed_tx)
+        session.commit()
+
+        update_req = FinancedTransactionUpdateRequest(
+            merchant="Apple Official",
+            note="Verified statement",
+        )
+        updated_tx = transaction_service.update_financed_transaction(
+            session, financed_tx.id, update_req
+        )
+
+        assert updated_tx.merchant == "Apple Official"
+        assert updated_tx.note == "Verified statement"
+        assert updated_tx.is_reconciled is True
+
+    def test_reconciled_financial_fields_blocked(self, session, financed_setup):
+        financed_tx, _ = financed_setup
+        financed_tx.is_reconciled = True
+        session.add(financed_tx)
+        session.commit()
+
+        # Amount blocked
+        with pytest.raises(
+            ValueError,
+            match="Cannot modify amount of a reconciled financed transaction",
+        ):
+            transaction_service.update_financed_transaction(
+                session,
+                financed_tx.id,
+                FinancedTransactionUpdateRequest(amount=Decimal("1500"), term=15),
+            )
+
+        # Term blocked
+        with pytest.raises(
+            ValueError,
+            match="Cannot modify term of a reconciled financed transaction",
+        ):
+            transaction_service.update_financed_transaction(
+                session,
+                financed_tx.id,
+                FinancedTransactionUpdateRequest(term=24),
+            )
+
+        # Payment method blocked
+        get_or_create_account(session, "Mastercard", AccountType.CREDIT_CARD)
+        with pytest.raises(
+            ValueError,
+            match="Cannot change the payment method of a reconciled",
+        ):
+            transaction_service.update_financed_transaction(
+                session,
+                financed_tx.id,
+                FinancedTransactionUpdateRequest(payment_method_name="Mastercard"),
+            )
+
+        # Envelope blocked
+        with pytest.raises(
+            ValueError,
+            match="Cannot modify envelope of a reconciled financed transaction",
+        ):
+            transaction_service.update_financed_transaction(
+                session,
+                financed_tx.id,
+                FinancedTransactionUpdateRequest(envelope_name="New Envelope"),
+            )
+
+    def test_update_payment_method_switching_credit_cards(
+        self, session, financed_setup
+    ):
+        financed_tx, visa_account = financed_setup
+        mc_account = get_or_create_account(
+            session, "Mastercard", AccountType.CREDIT_CARD
+        )
+
+        assert visa_account.current_balance == Decimal("1200")
+        assert mc_account.current_balance == Decimal("0")
+
+        update_req = FinancedTransactionUpdateRequest(payment_method_name="Mastercard")
+        updated_tx = transaction_service.update_financed_transaction(
+            session, financed_tx.id, update_req
+        )
+
+        # Visa debt cleared, Mastercard takes over the $1200 debt
+        assert visa_account.current_balance == Decimal("0")
+        assert mc_account.current_balance == Decimal("1200")
+        assert updated_tx.account is not None
+        assert updated_tx.account.name == "Mastercard"
+
+    def test_update_payment_method_to_cash_raises_error(self, session, financed_setup):
+        financed_tx, _ = financed_setup
+        get_or_create_account(session, "Cash", AccountType.CASH)
+
+        update_req = FinancedTransactionUpdateRequest(payment_method_name="Cash")
+        with pytest.raises(ValueError, match="Account type has to be credit card"):
+            transaction_service.update_financed_transaction(
+                session, financed_tx.id, update_req
+            )
+
+    def test_update_non_financed_transaction_raises_error(self, session):
+        cash_account = get_or_create_account(session, "Cash", AccountType.CASH)
+        cash_account.current_balance += Decimal("500")
+        get_or_create_envelope(session, "Groceries")
+
+        entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Grocery Store",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[entry],
+        )
+        reg_tx = transaction_service.add_reg_transaction(session, tx_req)
+
+        update_req = FinancedTransactionUpdateRequest(merchant="New Store")
+        assert reg_tx.id is not None
+        with pytest.raises(
+            ValueError,
+            match="Only financed transactions can be modified through this function",
+        ):
+            transaction_service.update_financed_transaction(
+                session, reg_tx.id, update_req
+            )
+
+    def test_update_reversed_financed_transaction_raises_error(
+        self, session, financed_setup
+    ):
+        financed_tx, _ = financed_setup
+        transaction_service.reverse_transaction(session, financed_tx.id)
+
+        update_req = FinancedTransactionUpdateRequest(merchant="Apple New")
+        with pytest.raises(
+            ValueError, match="has been reversed and cannot be modified"
+        ):
+            transaction_service.update_financed_transaction(
+                session, financed_tx.id, update_req
+            )
+
+    def test_update_nonexistent_transaction_raises_error(self, session):
+        update_req = FinancedTransactionUpdateRequest(merchant="Ghost")
+        with pytest.raises(
+            ValueError, match="Transaction with id: 99999 does not exist"
+        ):
+            transaction_service.update_financed_transaction(session, 99999, update_req)
+
+    def test_update_invalid_inputs_raises_error(self, session, financed_setup):
+        financed_tx, _ = financed_setup
+
+        # Empty merchant
+        with pytest.raises(ValueError, match="Merchant name cannot be empty"):
+            transaction_service.update_financed_transaction(
+                session,
+                financed_tx.id,
+                FinancedTransactionUpdateRequest(merchant="   "),
+            )
+
+        # Amount <= 0
+        with pytest.raises(
+            ValueError, match="Amount financed has to be greater than 0"
+        ):
+            transaction_service.update_financed_transaction(
+                session,
+                financed_tx.id,
+                FinancedTransactionUpdateRequest(amount=Decimal("-100"), term=10),
+            )
+
+        # Term <= 0
+        with pytest.raises(ValueError, match="Term has to be a positive number"):
+            transaction_service.update_financed_transaction(
+                session,
+                financed_tx.id,
+                FinancedTransactionUpdateRequest(term=-5),
+            )
+
+        # Non-existent account
+        with pytest.raises(ValueError, match="Account NonExistentBank does not exist"):
+            transaction_service.update_financed_transaction(
+                session,
+                financed_tx.id,
+                FinancedTransactionUpdateRequest(payment_method_name="NonExistentBank"),
+            )
+
+    def test_modify_financed_transaction_alias(self, session, financed_setup):
+        financed_tx, _ = financed_setup
+        update_req = FinancedTransactionUpdateRequest(note="Updated via alias")
+        updated_tx = transaction_service.modify_financed_transaction(
+            session, financed_tx.id, update_req
+        )
+        assert updated_tx.note == "Updated via alias"

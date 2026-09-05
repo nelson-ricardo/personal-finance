@@ -121,3 +121,50 @@ class TransactionUpdateRequest(SQLModel):
     ledger_entries: Optional[List[ledger.LedgerRequest]] = Field(
         default=None, description="Updated envelope allocations and amounts"
     )
+
+
+class FinancedTransactionUpdateRequest(SQLModel):
+    """Payload for modifying an existing financed installment transaction.
+
+    All fields are optional; only specified fields will be updated.
+    If amount is modified, term must also be provided to calculate new monthly payments.
+
+    Attributes:
+        merchant: Updated merchant or payee name.
+        amount: Updated total principal financed amount.
+        term: Updated number of monthly installment terms.
+        payment_method_name: Updated credit card account name.
+        envelope_name: Optional custom or updated envelope name.
+        note: Updated user notes or tags.
+        logged_date: Updated transaction date.
+        posted_date: Updated cleared date.
+        is_reconciled: Updated reconciliation status.
+    """
+
+    merchant: Optional[str] = Field(
+        default=None, description="Updated merchant or payee name"
+    )
+    amount: Optional[Decimal] = Field(
+        default=None, description="Updated total financed amount"
+    )
+    term: Optional[int] = Field(
+        default=None, description="Updated number of monthly installment terms"
+    )
+    payment_method_name: Optional[str] = Field(
+        default=None, description="Updated name of the credit card account used"
+    )
+    envelope_name: Optional[str] = Field(
+        default=None, description="Optional custom name for the financing envelope"
+    )
+    note: Optional[str] = Field(
+        default=None, description="Updated user notes or tags"
+    )
+    logged_date: Optional[date] = Field(
+        default=None, description="Updated transaction date"
+    )
+    posted_date: Optional[date] = Field(
+        default=None, description="Updated bank statement posted date"
+    )
+    is_reconciled: Optional[bool] = Field(
+        default=None, description="Updated reconciliation status"
+    )
