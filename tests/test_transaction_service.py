@@ -12,6 +12,7 @@ from budget_app.schemas import (
     LedgerRequest,
     TransactionRequest,
     TransactionType,
+    TransactionUpdateRequest,
 )
 from budget_app.services import account_service, envelope_service, transaction_service
 
@@ -1011,6 +1012,382 @@ class TestGetTransactionById:
     def test_get_nonexistent_transaction_by_id_raises_error(self, session):
         with pytest.raises(ValueError, match="Transaction with id: 99999 does not exist"):
             transaction_service.get_transaction_by_id(session, 99999)
+
+
+class TestUpdateTransaction:
+    def test_update_metadata_only(self, session, transaction_set_up):
+        _, cash_account = transaction_set_up
+        entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Safeway",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[entry],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+        assert cash_account.current_balance == Decimal("950")
+
+        # Update merchant, note, and logged_date
+        new_date = date(2026, 8, 15)
+        update_req = TransactionUpdateRequest(
+            merchant="Safeway Store #123",
+            note="Weekly grocery trip",
+            logged_date=new_date,
+        )
+        updated_tx = transaction_service.update_transaction(session, tx.id, update_req)
+
+        assert updated_tx.id == tx.id
+        assert updated_tx.merchant == "Safeway Store #123"
+        assert updated_tx.note == "Weekly grocery trip"
+        assert updated_tx.logged_date == new_date
+        # Balance and ledger remain intact
+        assert cash_account.current_balance == Decimal("950")
+        assert len(updated_tx.entries) == 1
+        assert updated_tx.entries[0].amount == Decimal("-50")
+
+    def test_reconciled_metadata_allowed(self, session, transaction_set_up):
+        _, cash_account = transaction_set_up
+        entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Trader Joe's",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            is_reconciled=True,
+            ledger_entries=[entry],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+        assert tx.is_reconciled is True
+
+        update_req = TransactionUpdateRequest(
+            merchant="Trader Joe's #456",
+            note="Reconciled receipt verified",
+        )
+        updated_tx = transaction_service.update_transaction(session, tx.id, update_req)
+
+        assert updated_tx.merchant == "Trader Joe's #456"
+        assert updated_tx.note == "Reconciled receipt verified"
+        assert updated_tx.is_reconciled is True
+
+    def test_reconciled_ledger_entries_blocked(self, session, transaction_set_up):
+        _, cash_account = transaction_set_up
+        entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Trader Joe's",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            is_reconciled=True,
+            ledger_entries=[entry],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+
+        new_entry = LedgerRequest(amount=Decimal("-60"), envelope_name="Groceries")
+        update_req = TransactionUpdateRequest(ledger_entries=[new_entry])
+
+        with pytest.raises(ValueError, match="Cannot modify ledger entries of a reconciled transaction"):
+            transaction_service.update_transaction(session, tx.id, update_req)
+
+    def test_reconciled_payment_method_blocked(self, session, transaction_set_up):
+        get_or_create_envelope(session, "Credit Card Payment")
+        get_or_create_account(session, "Visa", AccountType.CREDIT_CARD)
+
+        entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Trader Joe's",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            is_reconciled=True,
+            ledger_entries=[entry],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+
+        update_req = TransactionUpdateRequest(payment_method_name="Visa")
+        with pytest.raises(ValueError, match="Cannot change the payment method of a reconciled transaction"):
+            transaction_service.update_transaction(session, tx.id, update_req)
+
+    def test_update_split_amounts_cash(self, session, transaction_set_up):
+        _, cash_account = transaction_set_up
+        entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Costco",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[entry],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+        assert cash_account.current_balance == Decimal("950")
+
+        # Update expense from $50 to $80
+        new_entry = LedgerRequest(amount=Decimal("-80"), envelope_name="Groceries")
+        update_req = TransactionUpdateRequest(ledger_entries=[new_entry])
+        updated_tx = transaction_service.update_transaction(session, tx.id, update_req)
+
+        assert cash_account.current_balance == Decimal("920")
+        assert len(updated_tx.entries) == 1
+        assert updated_tx.entries[0].amount == Decimal("-80")
+        assert transaction_service.calculate_transaction_total(updated_tx) == Decimal("80")
+
+    def test_update_split_envelope_category(self, session, transaction_set_up):
+        _, cash_account = transaction_set_up
+        entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Cinema",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[entry],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+
+        groceries_env = envelope_repo.get_envelope_by_name(session, "Groceries")
+        fun_env = envelope_repo.get_envelope_by_name(session, "Fun")
+
+        # Before update: Groceries had 500 - 50 = 450; Fun had 500
+        assert envelope_repo.get_balance_for_envelope(
+            session, groceries_env
+        ) == Decimal("450")
+        assert envelope_repo.get_balance_for_envelope(
+            session, fun_env
+        ) == Decimal("500")
+
+        # Update category from Groceries to Fun
+        new_entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Fun")
+        update_req = TransactionUpdateRequest(ledger_entries=[new_entry])
+        transaction_service.update_transaction(session, tx.id, update_req)
+
+        # After update: Groceries restored to 500, Fun deducted to 450
+        assert envelope_repo.get_balance_for_envelope(
+            session, groceries_env
+        ) == Decimal("500")
+        assert envelope_repo.get_balance_for_envelope(
+            session, fun_env
+        ) == Decimal("450")
+        assert cash_account.current_balance == Decimal("950")
+
+    def test_update_payment_method_cash_to_credit_card(
+        self, session, transaction_set_up
+    ):
+        _, cash_account = transaction_set_up
+        get_or_create_envelope(session, "Credit Card Payment")
+        cc_account = get_or_create_account(session, "Visa", AccountType.CREDIT_CARD)
+
+        entry = LedgerRequest(amount=Decimal("-60"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Supermarket",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[entry],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+
+        assert cash_account.current_balance == Decimal("940")
+        assert cc_account.current_balance == Decimal("0")
+
+        # Update payment method from Cash to Visa
+        update_req = TransactionUpdateRequest(payment_method_name="Visa")
+        updated_tx = transaction_service.update_transaction(session, tx.id, update_req)
+
+        # Cash balance refunded to 1000, CC balance increases by 60
+        assert cash_account.current_balance == Decimal("1000")
+        assert cc_account.current_balance == Decimal("60")
+        assert updated_tx.account.name == "Visa"
+        # CC expense has split + balancing entry
+        assert len(updated_tx.entries) == 2
+        entry_envelopes = {e.envelope.name for e in updated_tx.entries}
+        assert entry_envelopes == {"Groceries", "Credit Card Payment"}
+
+    def test_update_payment_method_credit_card_to_cash(
+        self, session, transaction_set_up
+    ):
+        _, cash_account = transaction_set_up
+        get_or_create_envelope(session, "Credit Card Payment")
+        cc_account = get_or_create_account(session, "Visa", AccountType.CREDIT_CARD)
+
+        entry = LedgerRequest(amount=Decimal("-75"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Whole Foods",
+            payment_method_name="Visa",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[entry],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+
+        assert cc_account.current_balance == Decimal("75")
+        assert cash_account.current_balance == Decimal("1000")
+
+        # Update payment method from Visa to Cash
+        update_req = TransactionUpdateRequest(payment_method_name="Cash")
+        updated_tx = transaction_service.update_transaction(session, tx.id, update_req)
+
+        # CC balance reduced back to 0, Cash balance deducted to 925
+        assert cc_account.current_balance == Decimal("0")
+        assert cash_account.current_balance == Decimal("925")
+        assert updated_tx.account.name == "Cash"
+        # Only 1 entry (balancing entry removed)
+        assert len(updated_tx.entries) == 1
+        assert updated_tx.entries[0].envelope.name == "Groceries"
+        assert updated_tx.entries[0].amount == Decimal("-75")
+
+    def test_update_both_account_and_splits(self, session, transaction_set_up):
+        _, cash_account = transaction_set_up
+        get_or_create_envelope(session, "Credit Card Payment")
+        cc_account = get_or_create_account(session, "Visa", AccountType.CREDIT_CARD)
+
+        entry = LedgerRequest(amount=Decimal("-40"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Target",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[entry],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+
+        # Update to Visa, and split into Groceries (-$30) and Fun (-$20) -> total $50
+        update_req = TransactionUpdateRequest(
+            merchant="Target Superstore",
+            payment_method_name="Visa",
+            ledger_entries=[
+                LedgerRequest(amount=Decimal("-30"), envelope_name="Groceries"),
+                LedgerRequest(amount=Decimal("-20"), envelope_name="Fun"),
+            ],
+        )
+        updated_tx = transaction_service.update_transaction(session, tx.id, update_req)
+
+        assert cash_account.current_balance == Decimal("1000")
+        assert cc_account.current_balance == Decimal("50")
+        assert updated_tx.account.name == "Visa"
+        assert updated_tx.merchant == "Target Superstore"
+        assert len(updated_tx.entries) == 3  # Groceries + Fun + CC Payment balancing
+        assert transaction_service.calculate_transaction_total(
+            updated_tx
+        ) == Decimal("50")
+
+    def test_update_financed_transaction_raises_error(self, session):
+        get_or_create_account(session, "Visa", AccountType.CREDIT_CARD)
+        financed_tx = transaction_service.add_financed_transaction(
+            session,
+            FinancedTransaction(
+                merchant="Apple Store",
+                amount=Decimal("1200"),
+                term=12,
+                payment_method_name="Visa",
+            ),
+        )
+
+        update_req = TransactionUpdateRequest(merchant="Apple Store New")
+        with pytest.raises(
+            ValueError, match="Financed transactions cannot be modified"
+        ):
+            transaction_service.update_transaction(session, financed_tx.id, update_req)
+
+    def test_update_reversed_transaction_raises_error(
+        self, session, transaction_set_up
+    ):
+        entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Store",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[entry],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+        transaction_service.reverse_transaction(session, tx.id)
+
+        update_req = TransactionUpdateRequest(merchant="New Name")
+        with pytest.raises(
+            ValueError, match="has been reversed and cannot be modified"
+        ):
+            transaction_service.update_transaction(session, tx.id, update_req)
+
+    def test_update_nonexistent_transaction_raises_error(self, session):
+        update_req = TransactionUpdateRequest(merchant="Ghost")
+        with pytest.raises(
+            ValueError, match="Transaction with id: 99999 does not exist"
+        ):
+            transaction_service.update_transaction(session, 99999, update_req)
+
+    def test_update_with_empty_merchant_raises_error(
+        self, session, transaction_set_up
+    ):
+        entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Store",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[entry],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+
+        update_req = TransactionUpdateRequest(merchant="   ")
+        with pytest.raises(ValueError, match="Merchant name cannot be empty"):
+            transaction_service.update_transaction(session, tx.id, update_req)
+
+    def test_update_with_empty_ledger_entries_raises_error(
+        self, session, transaction_set_up
+    ):
+        entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Store",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[entry],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+
+        update_req = TransactionUpdateRequest(ledger_entries=[])
+        with pytest.raises(
+            ValueError, match="Transaction must have at least one ledger entry"
+        ):
+            transaction_service.update_transaction(session, tx.id, update_req)
+
+    def test_update_with_nonexistent_account_raises_error(
+        self, session, transaction_set_up
+    ):
+        entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Store",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[entry],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+
+        update_req = TransactionUpdateRequest(payment_method_name="NonExistentBank")
+        with pytest.raises(ValueError, match="Account NonExistentBank does not exist"):
+            transaction_service.update_transaction(session, tx.id, update_req)
+
+    def test_update_with_nonexistent_envelope_raises_error(
+        self, session, transaction_set_up
+    ):
+        entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Store",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[entry],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+
+        alien_entry = LedgerRequest(
+            amount=Decimal("-50"), envelope_name="AlienBudget"
+        )
+        update_req = TransactionUpdateRequest(ledger_entries=[alien_entry])
+        with pytest.raises(ValueError, match="Envelope AlienBudget does not exist"):
+            transaction_service.update_transaction(session, tx.id, update_req)
+
+    def test_modify_transaction_alias(self, session, transaction_set_up):
+        entry = LedgerRequest(amount=Decimal("-30"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Store",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            ledger_entries=[entry],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+
+        update_req = TransactionUpdateRequest(note="Updated via alias")
+        updated_tx = transaction_service.modify_transaction(session, tx.id, update_req)
+        assert updated_tx.note == "Updated via alias"
+
+
 
 
 

@@ -12,7 +12,7 @@ from typing import List
 
 from sqlmodel import Session
 
-from budget_app.models import Account, Transaction
+from budget_app.models import Account, Ledger, Transaction
 from budget_app.repositories import (
     account_repo,
     envelope_repo,
@@ -29,6 +29,7 @@ from budget_app.schemas import (
     TransactionRequest,
     TransactionResponse,
     TransactionType,
+    TransactionUpdateRequest,
 )
 
 
@@ -516,6 +517,192 @@ def get_transaction_by_id(session: Session, transaction_id: int) -> TransactionD
     )
 
 
+def update_transaction(
+    session: Session, transaction_id: int, updates: TransactionUpdateRequest
+) -> Transaction:
+    """Modifies an existing transaction in-place while maintaining accounting integrity.
+
+    Supports metadata updates (merchant, note, dates, reconciliation status), split
+    amount and envelope adjustments, and payment account reassignment.
+    Reconciled transactions only permit metadata updates (notes, merchant, dates); their
+    ledger splits and payment accounts cannot be modified. Financed and reversed
+    transactions cannot be modified through this function.
+
+    Args:
+        session: Active SQLModel database session.
+        transaction_id: Integer ID of the transaction to modify.
+        updates: TransactionUpdateRequest containing fields to update.
+
+    Returns:
+        The updated and refreshed Transaction instance.
+
+    Raises:
+        ValueError: If transaction doesn't exist, is FINANCED or REVERSAL, has been
+            reversed, is reconciled and financial fields are modified, has invalid
+            merchant, or if the target account or envelopes do not exist.
+    """
+    tx = session.get(Transaction, transaction_id)
+    if not tx:
+        raise ValueError(f"Transaction with id: {transaction_id} does not exist.")
+
+    if tx.transaction_type == TransactionType.FINANCED:
+        raise ValueError(
+            "Financed transactions cannot be modified through this function."
+        )
+
+    is_reversal = tx.transaction_type == TransactionType.REVERSAL
+    has_reversed_note = bool(tx.note and "[REVERSED]" in tx.note)
+    if is_reversal or has_reversed_note:
+        raise ValueError(
+            f"Transaction #{transaction_id} has been reversed and cannot be modified."
+        )
+
+    if not tx.account:
+        raise ValueError(
+            f"Transaction #{transaction_id} has no associated payment account."
+        )
+
+    # Check reconciled constraints
+    if tx.is_reconciled:
+        if updates.ledger_entries is not None:
+            raise ValueError(
+                "Cannot modify ledger entries of a reconciled transaction."
+            )
+        if (
+            updates.payment_method_name is not None
+            and updates.payment_method_name != tx.account.name
+        ):
+            raise ValueError(
+                "Cannot change the payment method of a reconciled transaction."
+            )
+
+    # Metadata updates
+    if updates.merchant is not None:
+        if not updates.merchant.strip():
+            raise ValueError("Merchant name cannot be empty.")
+        tx.merchant = updates.merchant.strip()
+
+    if updates.logged_date is not None:
+        tx.logged_date = updates.logged_date
+
+    if updates.posted_date is not None:
+        tx.posted_date = updates.posted_date
+
+    if updates.note is not None:
+        tx.note = updates.note
+
+    if updates.is_reconciled is not None:
+        tx.is_reconciled = updates.is_reconciled
+
+    # Determine if financial/structural updates are needed
+    is_financial_update = (
+        updates.ledger_entries is not None
+        or (
+            updates.payment_method_name is not None
+            and updates.payment_method_name != tx.account.name
+        )
+    )
+
+    if is_financial_update:
+        # Resolve target payment account
+        target_account = tx.account
+        if updates.payment_method_name is not None:
+            acc = account_repo.get_account_by_name(session, updates.payment_method_name)
+            if not acc:
+                raise ValueError(
+                    f"Account {updates.payment_method_name} does not exist."
+                )
+            target_account = acc
+
+        # Resolve target splits
+        if updates.ledger_entries is not None:
+            if not updates.ledger_entries:
+                raise ValueError("Transaction must have at least one ledger entry.")
+            target_split_requests = updates.ledger_entries
+        else:
+            # Preserve existing splits, excluding CC payment balancing entry
+            is_old_cc = tx.account.account_type == AccountType.CREDIT_CARD
+            target_split_requests = []
+            for entry in tx.entries:
+                if not entry.envelope:
+                    raise ValueError(
+                        f"Envelope for ledger entry #{entry.id} not found."
+                    )
+                if is_old_cc and entry.envelope.name == "Credit Card Payment":
+                    continue
+                target_split_requests.append(
+                    LedgerRequest(
+                        amount=entry.amount,
+                        envelope_name=entry.envelope.name,
+                    )
+                )
+
+        # Validate that all envelopes exist
+        envelopes_by_name = {}
+        for entry_req in target_split_requests:
+            env = envelope_repo.get_envelope_by_name(session, entry_req.envelope_name)
+            if not env:
+                raise ValueError(f"Envelope {entry_req.envelope_name} does not exist.")
+            envelopes_by_name[entry_req.envelope_name] = env
+
+        # 1. Undo old financial impact on old account
+        old_account = tx.account
+        old_total = calculate_transaction_total(tx)
+
+        if tx.transaction_type == TransactionType.EXPENSE:
+            if old_account.account_type == AccountType.CASH:
+                old_account.current_balance += old_total
+            elif old_account.account_type == AccountType.CREDIT_CARD:
+                old_account.current_balance -= old_total
+        elif tx.transaction_type == TransactionType.INCOME:
+            if old_account.account_type == AccountType.CASH:
+                old_account.current_balance -= old_total
+
+        # 2. Delete old ledger splits
+        for entry in list(tx.entries):
+            session.delete(entry)
+        tx.entries.clear()
+
+        # 3. Create new user ledger splits
+        new_total = Decimal("0.00")
+        for entry_req in target_split_requests:
+            env = envelopes_by_name[entry_req.envelope_name]
+            tx.entries.append(Ledger(amount=entry_req.amount, envelope=env))
+            new_total += abs(entry_req.amount)
+
+        # 4. If target account is CC and transaction is Expense, add balancing entry
+        if (
+            target_account.account_type == AccountType.CREDIT_CARD
+            and tx.transaction_type == TransactionType.EXPENSE
+        ):
+            cc_env = envelope_repo.get_or_create_envelope(
+                session, EnvelopeBase(name="Credit Card Payment")
+            )
+            tx.entries.append(Ledger(amount=new_total, envelope=cc_env))
+
+        # 5. Apply new financial impact on target account
+        if tx.transaction_type == TransactionType.EXPENSE:
+            if target_account.account_type == AccountType.CASH:
+                target_account.current_balance -= new_total
+            elif target_account.account_type == AccountType.CREDIT_CARD:
+                target_account.current_balance += new_total
+        elif tx.transaction_type == TransactionType.INCOME:
+            if target_account.account_type == AccountType.CASH:
+                target_account.current_balance += new_total
+
+        # Bind transaction to target account
+        tx.account = target_account
+
+        session.add(old_account)
+        if target_account != old_account:
+            session.add(target_account)
+
+    session.add(tx)
+    session.commit()
+    session.refresh(tx)
+    return tx
+
+
 # Aliases
 get_transaction = get_transactions
 fetch_transactions = get_transactions
@@ -523,3 +710,4 @@ reverse_transaction = delete_transaction
 fetch_transaction_by_id = get_transaction_by_id
 get_transaction_detail = get_transaction_by_id
 fetch_transaction_detail = get_transaction_by_id
+modify_transaction = update_transaction

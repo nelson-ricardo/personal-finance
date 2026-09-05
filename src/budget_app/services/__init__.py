@@ -24,7 +24,9 @@ from budget_app.services.transaction_service import (
     get_transaction_by_id,
     get_transaction_detail,
     get_transactions,
+    modify_transaction,
     reverse_transaction,
+    update_transaction,
 )
 
 __all__ = [
@@ -48,6 +50,8 @@ __all__ = [
     "fetch_transaction_detail",
     "delete_transaction",
     "reverse_transaction",
+    "update_transaction",
+    "modify_transaction",
 ]
 
 

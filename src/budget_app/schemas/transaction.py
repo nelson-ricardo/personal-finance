@@ -96,3 +96,28 @@ class TransactionDetailResponse(TransactionResponse):
     def ledger_entries(self) -> List[ledger.LedgerResponse]:
         """Alias for entries."""
         return self.entries
+
+
+class TransactionUpdateRequest(SQLModel):
+    """Payload for modifying an existing transaction.
+
+    All fields are optional; only specified fields will be updated.
+    Attributes:
+        merchant: Updated payee, merchant, or income source name.
+        logged_date: Updated transaction date.
+        posted_date: Updated cleared date.
+        note: Updated user notes or tags.
+        is_reconciled: Updated reconciliation status.
+        payment_method_name: Updated account name (Cash, Credit Card, etc.).
+        ledger_entries: Updated envelope allocations and split amounts.
+    """
+
+    merchant: Optional[str] = Field(default=None, description="Payee, merchant, or income source name")
+    logged_date: Optional[date] = Field(default=None, description="Date when the transaction occurred or was recorded")
+    posted_date: Optional[date] = Field(default=None, description="Date when the transaction cleared on bank statement")
+    note: Optional[str] = Field(default=None, description="Optional user notes or tags")
+    is_reconciled: Optional[bool] = Field(default=None, description="Whether the transaction has been matched to bank records")
+    payment_method_name: Optional[str] = Field(default=None, description="Name of the paying or receiving Account")
+    ledger_entries: Optional[List[ledger.LedgerRequest]] = Field(
+        default=None, description="Updated envelope allocations and amounts"
+    )

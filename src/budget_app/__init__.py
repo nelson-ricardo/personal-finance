@@ -21,6 +21,7 @@ from budget_app.schemas import (
     TransactionRequest,
     TransactionResponse,
     TransactionType,
+    TransactionUpdateRequest,
 )
 from budget_app.services import (
     add_financed_transaction,
@@ -35,9 +36,11 @@ from budget_app.services import (
     get_transaction,
     get_transaction_by_id,
     get_transactions,
+    modify_transaction,
     reverse_transaction,
     transfer_between_envelopes,
     transfer_from_unassigned,
+    update_transaction,
 )
 
 
@@ -68,6 +71,7 @@ __all__ = [
     "TransactionType",
     "TransactionBase",
     "TransactionRequest",
+    "TransactionUpdateRequest",
     "TransactionResponse",
     "TransactionDetailResponse",
     # Services
@@ -86,6 +90,8 @@ __all__ = [
     "fetch_transaction_by_id",
     "delete_transaction",
     "reverse_transaction",
+    "update_transaction",
+    "modify_transaction",
 ]
 
 
