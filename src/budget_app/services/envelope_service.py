@@ -8,6 +8,7 @@ Handles:
 """
 
 from decimal import Decimal
+from typing import List
 
 from sqlmodel import Session
 
@@ -19,6 +20,8 @@ from budget_app.schemas import (
     LedgerRequest,
     TransactionRequest,
     TransactionType,
+    EnvelopeWithBalance,
+    EnvelopeUpdate,
 )
 
 SYSTEM_ENVELOPES: frozenset[str] = frozenset({"Unassigned", "Credit Card Payment"})
@@ -310,6 +313,184 @@ def activate_envelope(session: Session, envelope_name: str) -> Envelope:
     session.commit()
     session.refresh(target_envelope)
     return target_envelope
+
+def get_envelopes_and_balances(
+    session: Session, is_active: bool | None = None
+) -> List[EnvelopeWithBalance]:
+    """Fetches envelopes with their calculated balances, optionally filtered by active status.
+
+    Args:
+        session: Active SQLModel database session.
+        is_active: Optional boolean filter. If None, returns all envelopes.
+
+    Returns:
+        List of EnvelopeWithBalance instances ordered by name.
+    """
+    envelopes = envelope_repo.get_envelopes(session, is_active)
+    result: List[EnvelopeWithBalance] = []
+
+    for envelope in envelopes:
+        curr_balance = envelope_repo.get_balance_for_envelope(session, envelope)
+        result.append(
+            EnvelopeWithBalance(
+                id=envelope.id,
+                name=envelope.name,
+                note=envelope.note,
+                is_active=envelope.is_active,
+                balance=curr_balance,
+            )
+        )
+
+    return result
+
+
+def get_active_envelopes_w_balance(session: Session) -> List[EnvelopeWithBalance]:
+    """Retrieves all active budgeting envelopes with their current balances."""
+    return get_envelopes_and_balances(session, is_active=True)
+
+
+def get_inactive_envelopes_w_balance(session: Session) -> List[EnvelopeWithBalance]:
+    """Retrieves all inactive budgeting envelopes with their current balances."""
+    return get_envelopes_and_balances(session, is_active=False)
+
+
+def get_single_envelope_w_balance(
+    session: Session, envelope_name: str
+) -> EnvelopeWithBalance:
+    """Fetches a single envelope and its calculated balance.
+
+    Args:
+        session: Active SQLModel database session.
+        envelope_name: Name of the envelope to retrieve.
+
+    Returns:
+        EnvelopeWithBalance instance with current balance.
+
+    Raises:
+        ValueError: If name is empty/whitespace or envelope does not exist.
+    """
+    if not envelope_name or not envelope_name.strip():
+        raise ValueError("get_single_envelope_w_balance: envelope name cannot be empty")
+
+    envelope_name = envelope_name.strip()
+    target_envelope = envelope_repo.get_envelope_by_name(session, envelope_name)
+
+    if not target_envelope:
+        raise ValueError(f"envelope '{envelope_name}' does not exist")
+
+    curr_balance = envelope_repo.get_balance_for_envelope(session, target_envelope)
+
+    return EnvelopeWithBalance(
+        id=target_envelope.id,
+        name=target_envelope.name,
+        note=target_envelope.note,
+        is_active=target_envelope.is_active,
+        balance=curr_balance,
+    )
+
+
+def perma_delete_envelope(session: Session, envelope_name: str) -> bool:
+    """Permanently deletes an envelope if it has no associated ledger transactions.
+
+    System envelopes and envelopes linked to financial accounts cannot be deleted.
+
+    Args:
+        session: Active SQLModel database session.
+        envelope_name: Name of the envelope to delete.
+
+    Returns:
+        True if the envelope was deleted successfully.
+
+    Raises:
+        ValueError: If name is empty, envelope does not exist, envelope is a system
+            envelope, envelope is linked to an account, or envelope has ledger entries.
+    """
+    if not envelope_name or not envelope_name.strip():
+        raise ValueError("perma_delete_envelope: envelope name cannot be empty")
+
+    envelope_name = envelope_name.strip()
+
+    if envelope_name in SYSTEM_ENVELOPES:
+        raise ValueError(f"Cannot delete system envelope '{envelope_name}'")
+
+    target_envelope = envelope_repo.get_envelope_by_name(session, envelope_name)
+    if not target_envelope:
+        raise ValueError(f"envelope '{envelope_name}' does not exist")
+
+    if target_envelope.account is not None:
+        raise ValueError(
+            f"Cannot delete envelope '{envelope_name}' linked to account '{target_envelope.account.name}'"
+        )
+
+    if target_envelope.id is not None and envelope_repo.has_ledger_entries(
+        session, target_envelope.id
+    ):
+        raise ValueError(
+            f"envelope '{envelope_name}' has transactions associated with it, deactivate it instead"
+        )
+
+    envelope_repo.delete_envelope(session, target_envelope)
+    session.commit()
+    return True
+
+
+def update_envelope_info(
+    session: Session,
+    target_name: str,
+    envelope_info: EnvelopeUpdate,
+) -> Envelope:
+    """Updates an envelope's name and/or note.
+
+    Args:
+        session: Active SQLModel database session.
+        target_name: Current name of the envelope to update.
+        envelope_info: EnvelopeUpdate payload with optional new name and note.
+
+    Returns:
+        The updated and refreshed Envelope instance.
+
+    Raises:
+        ValueError: If target name is empty, envelope does not exist, attempting
+            to rename a system envelope, new name is invalid/duplicate, or new name
+            is a protected system envelope name.
+    """
+    if not target_name or not target_name.strip():
+        raise ValueError("update_envelope_info: envelope name cannot be empty")
+
+    target_name = target_name.strip()
+
+    target_envelope = envelope_repo.get_envelope_by_name(session, target_name)
+    if not target_envelope:
+        raise ValueError(f"envelope '{target_name}' does not exist")
+
+    # If updating name
+    if envelope_info.name is not None:
+        new_name = envelope_info.name.strip()
+        if not new_name:
+            raise ValueError("Envelope name cannot be empty")
+
+        if target_name in SYSTEM_ENVELOPES and new_name != target_name:
+            raise ValueError(f"Cannot rename system envelope '{target_name}'")
+
+        if new_name in SYSTEM_ENVELOPES and new_name != target_name:
+            raise ValueError(f"Cannot rename envelope to protected system name '{new_name}'")
+
+        if new_name != target_envelope.name:
+            existing = envelope_repo.get_envelope_by_name(session, new_name)
+            if existing is not None and existing.id != target_envelope.id:
+                raise ValueError(f"envelope '{new_name}' already exists, try a different name")
+            target_envelope.name = new_name
+
+    # If updating note
+    if envelope_info.note is not None:
+        note_val = envelope_info.note.strip()
+        target_envelope.note = note_val if note_val else None
+
+    session.add(target_envelope)
+    session.commit()
+    session.refresh(target_envelope)
+    return target_envelope
+
 
 
 transfer_from_unassigned = assign_to_envelope

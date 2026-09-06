@@ -1,6 +1,7 @@
 """Envelope repository for database operations on the Envelope entity."""
 
 from decimal import Decimal
+from typing import List
 
 from sqlmodel import Session, func, select
 
@@ -103,3 +104,44 @@ def get_balance_for_envelope(session: Session, cur_envelope: Envelope) -> Decima
         return Decimal("0")
     return Decimal(result)
 
+def get_envelopes(session: Session, is_active: bool | None = None) -> List[Envelope]:
+    """Fetches envelopes from the database, optionally filtered by active status.
+
+    Args:
+        session: Active SQLModel database session.
+        is_active: Optional boolean filter. If None, returns all envelopes.
+
+    Returns:
+        List of matching Envelope instances ordered by name.
+    """
+    stmt = select(Envelope)
+    if is_active is not None:
+        stmt = stmt.where(Envelope.is_active == is_active)
+
+    stmt = stmt.order_by(Envelope.name)
+    results = session.exec(stmt).all()
+    return list(results)
+
+
+def has_ledger_entries(session: Session, envelope_id: int) -> bool:
+    """Checks whether an envelope has any associated ledger entries.
+
+    Args:
+        session: Active SQLModel database session.
+        envelope_id: Integer ID of the envelope.
+
+    Returns:
+        True if at least one Ledger entry exists for this envelope, False otherwise.
+    """
+    stmt = select(Ledger.id).where(Ledger.envelope_id == envelope_id).limit(1)
+    return session.exec(stmt).first() is not None
+
+
+def delete_envelope(session: Session, envelope: Envelope) -> None:
+    """Deletes an envelope entity from the session.
+
+    Args:
+        session: Active SQLModel database session.
+        envelope: Envelope instance to delete.
+    """
+    session.delete(envelope)

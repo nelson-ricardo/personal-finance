@@ -1,7 +1,12 @@
 """Pydantic and SQLModel schemas package for request, response, and domain data transfer objects."""
 
 from budget_app.schemas.account import AccountBase, AccountType
-from budget_app.schemas.envelope import EnvelopeBase, EnvelopeTransfer
+from budget_app.schemas.envelope import(
+    EnvelopeBase, 
+    EnvelopeTransfer, 
+    EnvelopeWithBalance,
+    EnvelopeUpdate,
+)
 from budget_app.schemas.ledger import LedgerBase, LedgerRequest, LedgerResponse
 from budget_app.schemas.transaction import (
     FinancedTransaction,
@@ -30,6 +35,8 @@ __all__ = [
     "FinancedTransactionUpdateRequest",
     "TransactionResponse",
     "TransactionDetailResponse",
+    "EnvelopeWithBalance",
+    "EnvelopeUpdate",
 ]
 
 

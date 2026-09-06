@@ -11,6 +11,8 @@ from budget_app.repositories.transaction_repo import create_transaction
 from budget_app.schemas import (
     AccountType,
     EnvelopeBase,
+    EnvelopeUpdate,
+    EnvelopeWithBalance,
     LedgerRequest,
     TransactionRequest,
     TransactionType,
@@ -356,3 +358,274 @@ class TestActivateEnvelope:
     def test_activate_nonexistent_envelope_raises_error(self, session):
         with pytest.raises(ValueError, match="envelope 'NoSuchEnv' does not exist"):
             env_service.activate_envelope(session, "NoSuchEnv")
+
+
+class TestGetEnvelopesAndBalances:
+    def test_get_envelopes_and_balances_returns_all(self, session):
+        env_service.create_envelope(session, EnvelopeBase(name="AlphaEnv"))
+        env_service.create_envelope(
+            session, EnvelopeBase(name="BetaEnv", is_active=False)
+        )
+
+        all_envelopes = env_service.get_envelopes_and_balances(session)
+        names = [e.name for e in all_envelopes]
+        assert "AlphaEnv" in names
+        assert "BetaEnv" in names
+
+        for e in all_envelopes:
+            assert isinstance(e, EnvelopeWithBalance)
+            assert e.id is not None
+            assert isinstance(e.balance, Decimal)
+
+    def test_get_active_envelopes_w_balance(self, session):
+        env_service.create_envelope(session, EnvelopeBase(name="Active1"))
+        env_service.create_envelope(
+            session, EnvelopeBase(name="Inactive1", is_active=False)
+        )
+
+        active = env_service.get_active_envelopes_w_balance(session)
+        active_names = [e.name for e in active]
+        assert "Active1" in active_names
+        assert "Inactive1" not in active_names
+
+    def test_get_inactive_envelopes_w_balance(self, session):
+        env_service.create_envelope(session, EnvelopeBase(name="Active2"))
+        env_service.create_envelope(
+            session, EnvelopeBase(name="Inactive2", is_active=False)
+        )
+
+        inactive = env_service.get_inactive_envelopes_w_balance(session)
+        inactive_names = [e.name for e in inactive]
+        assert "Inactive2" in inactive_names
+        assert "Active2" not in inactive_names
+
+    def test_envelope_with_balance_reflects_transactions(self, session):
+        env_service.add_to_cash(session, Decimal("500"), "Income")
+        env_service.create_envelope(session, EnvelopeBase(name="FundedEnv"))
+        env_service.assign_to_envelope(
+            session, destination="FundedEnv", amount=Decimal("150")
+        )
+
+        results = env_service.get_envelopes_and_balances(session)
+        funded = next(e for e in results if e.name == "FundedEnv")
+        assert funded.balance == Decimal("150")
+
+
+class TestGetSingleEnvelopeWithBalance:
+    def test_get_single_envelope_success(self, session):
+        env_service.create_envelope(
+            session, EnvelopeBase(name="Coffee", note="Daily brew")
+        )
+        result = env_service.get_single_envelope_w_balance(session, "Coffee")
+
+        assert result.name == "Coffee"
+        assert result.note == "Daily brew"
+        assert result.is_active is True
+        assert result.balance == Decimal("0")
+        assert result.id is not None
+
+    def test_get_single_envelope_strips_whitespace(self, session):
+        env_service.create_envelope(session, EnvelopeBase(name="Tea"))
+        result = env_service.get_single_envelope_w_balance(session, "  Tea  ")
+        assert result.name == "Tea"
+
+    def test_get_single_envelope_empty_name_raises_error(self, session):
+        with pytest.raises(ValueError, match="envelope name cannot be empty"):
+            env_service.get_single_envelope_w_balance(session, "   ")
+
+    def test_get_single_envelope_nonexistent_raises_error(self, session):
+        with pytest.raises(ValueError, match="envelope 'Nonexistent' does not exist"):
+            env_service.get_single_envelope_w_balance(session, "Nonexistent")
+
+
+class TestPermaDeleteEnvelope:
+    def test_perma_delete_empty_envelope_success(self, session):
+        env_service.create_envelope(session, EnvelopeBase(name="Disposable"))
+        success = env_service.perma_delete_envelope(session, "Disposable")
+
+        assert success is True
+        assert get_envelope_by_name(session, "Disposable") is None
+
+    def test_perma_delete_strips_whitespace(self, session):
+        env_service.create_envelope(session, EnvelopeBase(name="TrimDelete"))
+        success = env_service.perma_delete_envelope(session, "  TrimDelete  ")
+
+        assert success is True
+        assert get_envelope_by_name(session, "TrimDelete") is None
+
+    def test_perma_delete_envelope_with_transactions_raises_error(self, session):
+        env_service.add_to_cash(session, Decimal("500"), "Income")
+        env_service.create_envelope(session, EnvelopeBase(name="HasTransactions"))
+        env_service.assign_to_envelope(
+            session, destination="HasTransactions", amount=Decimal("50")
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="has transactions associated with it, deactivate it instead",
+        ):
+            env_service.perma_delete_envelope(session, "HasTransactions")
+
+    def test_perma_delete_unassigned_raises_error(self, session):
+        with pytest.raises(
+            ValueError, match="Cannot delete system envelope 'Unassigned'"
+        ):
+            env_service.perma_delete_envelope(session, "Unassigned")
+
+    def test_perma_delete_credit_card_payment_raises_error(self, session):
+        with pytest.raises(
+            ValueError, match="Cannot delete system envelope 'Credit Card Payment'"
+        ):
+            env_service.perma_delete_envelope(session, "Credit Card Payment")
+
+    def test_perma_delete_linked_envelope_raises_error(self, session):
+        custom_env = env_service.create_envelope(
+            session, EnvelopeBase(name="TargetCard Payment")
+        )
+        acc = Account(
+            name="Target Card",
+            account_type=AccountType.CREDIT_CARD,
+            current_balance=Decimal("0"),
+            envelope_id=custom_env.id,
+        )
+        session.add(acc)
+        session.commit()
+
+        with pytest.raises(
+            ValueError, match="Cannot delete envelope .* linked to account 'Target Card'"
+        ):
+            env_service.perma_delete_envelope(session, "TargetCard Payment")
+
+    def test_perma_delete_empty_name_raises_error(self, session):
+        with pytest.raises(ValueError, match="envelope name cannot be empty"):
+            env_service.perma_delete_envelope(session, "   ")
+
+    def test_perma_delete_nonexistent_envelope_raises_error(self, session):
+        with pytest.raises(ValueError, match="envelope 'Ghost' does not exist"):
+            env_service.perma_delete_envelope(session, "Ghost")
+
+
+class TestUpdateEnvelopeInfo:
+    def test_update_envelope_name_success(self, session):
+        env_service.create_envelope(
+            session, EnvelopeBase(name="OldName", note="Old note")
+        )
+        updated = env_service.update_envelope_info(
+            session,
+            target_name="OldName",
+            envelope_info=EnvelopeUpdate(name="NewName"),
+        )
+
+        assert updated.name == "NewName"
+        assert updated.note == "Old note"
+        assert get_envelope_by_name(session, "OldName") is None
+        assert get_envelope_by_name(session, "NewName") is not None
+
+    def test_update_envelope_note_success(self, session):
+        env_service.create_envelope(
+            session, EnvelopeBase(name="Travel", note="Trip to Japan")
+        )
+        updated = env_service.update_envelope_info(
+            session,
+            target_name="Travel",
+            envelope_info=EnvelopeUpdate(note="Trip to Italy"),
+        )
+
+        assert updated.name == "Travel"
+        assert updated.note == "Trip to Italy"
+
+    def test_update_envelope_keep_same_name_and_change_note(self, session):
+        env_service.create_envelope(
+            session, EnvelopeBase(name="Hobbies", note="Guitars")
+        )
+        updated = env_service.update_envelope_info(
+            session,
+            target_name="Hobbies",
+            envelope_info=EnvelopeUpdate(name="Hobbies", note="Bicycles"),
+        )
+
+        assert updated.name == "Hobbies"
+        assert updated.note == "Bicycles"
+
+    def test_update_envelope_clear_note(self, session):
+        env_service.create_envelope(
+            session, EnvelopeBase(name="Subscriptions", note="Netflix")
+        )
+        updated = env_service.update_envelope_info(
+            session,
+            target_name="Subscriptions",
+            envelope_info=EnvelopeUpdate(note=""),
+        )
+
+        assert updated.note is None
+
+    def test_update_envelope_strips_whitespace(self, session):
+        env_service.create_envelope(session, EnvelopeBase(name="Books"))
+        updated = env_service.update_envelope_info(
+            session,
+            target_name="  Books  ",
+            envelope_info=EnvelopeUpdate(name="  Reading  "),
+        )
+
+        assert updated.name == "Reading"
+
+    def test_update_envelope_duplicate_name_raises_error(self, session):
+        env_service.create_envelope(session, EnvelopeBase(name="EnvA"))
+        env_service.create_envelope(session, EnvelopeBase(name="EnvB"))
+
+        with pytest.raises(
+            ValueError, match="envelope 'EnvB' already exists, try a different name"
+        ):
+            env_service.update_envelope_info(
+                session,
+                target_name="EnvA",
+                envelope_info=EnvelopeUpdate(name="EnvB"),
+            )
+
+    def test_update_envelope_rename_system_envelope_raises_error(self, session):
+        with pytest.raises(
+            ValueError, match="Cannot rename system envelope 'Unassigned'"
+        ):
+            env_service.update_envelope_info(
+                session,
+                target_name="Unassigned",
+                envelope_info=EnvelopeUpdate(name="CustomUnassigned"),
+            )
+
+    def test_update_envelope_rename_to_system_name_raises_error(self, session):
+        env_service.create_envelope(session, EnvelopeBase(name="MySavings"))
+
+        with pytest.raises(
+            ValueError,
+            match="Cannot rename envelope to protected system name 'Unassigned'",
+        ):
+            env_service.update_envelope_info(
+                session,
+                target_name="MySavings",
+                envelope_info=EnvelopeUpdate(name="Unassigned"),
+            )
+
+    def test_update_envelope_empty_target_name_raises_error(self, session):
+        with pytest.raises(ValueError, match="envelope name cannot be empty"):
+            env_service.update_envelope_info(
+                session,
+                target_name="   ",
+                envelope_info=EnvelopeUpdate(name="Valid"),
+            )
+
+    def test_update_envelope_empty_new_name_raises_error(self, session):
+        env_service.create_envelope(session, EnvelopeBase(name="ValidEnv"))
+        with pytest.raises(ValueError, match="Envelope name cannot be empty"):
+            env_service.update_envelope_info(
+                session,
+                target_name="ValidEnv",
+                envelope_info=EnvelopeUpdate(name="   "),
+            )
+
+    def test_update_envelope_nonexistent_raises_error(self, session):
+        with pytest.raises(ValueError, match="envelope 'Ghost' does not exist"):
+            env_service.update_envelope_info(
+                session,
+                target_name="Ghost",
+                envelope_info=EnvelopeUpdate(name="NewName"),
+            )

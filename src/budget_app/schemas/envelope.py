@@ -33,6 +33,18 @@ class EnvelopeTransfer(SQLModel):
     new_balance_dest: Decimal
     transfer_transaction: Transaction
 
+class EnvelopeWithBalance(EnvelopeBase):
+    """Envelope Base with its database ID and balance."""
+
+    id: Optional[int] = Field(default=None, description="Primary key ID of the envelope")
+    balance: Decimal = Field(description="Current net balance of the envelope")
+
+
+class EnvelopeUpdate(SQLModel):
+    """Payload for updating an envelope's name or note."""
+
+    name: Optional[str] = Field(default=None, description="Updated unique display name")
+    note: Optional[str] = Field(default=None, description="Updated note or goal description")
 
 class Config:
     arbitrary_types_allows = True
