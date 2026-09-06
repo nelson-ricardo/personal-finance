@@ -25,12 +25,14 @@ from budget_app.schemas import (
     FinancedTransactionUpdateRequest,
 )
 from budget_app.services import (
+    activate_envelope,
     add_financed_transaction,
     add_reg_transaction,
     add_to_cash,
     assign_to_envelope,
     create_account,
     create_envelope,
+    deactivate_envelope,
     delete_transaction,
     fetch_transaction_by_id,
     fetch_transactions,
@@ -81,6 +83,8 @@ __all__ = [
     # Services
     "create_account",
     "create_envelope",
+    "activate_envelope",
+    "deactivate_envelope",
     "add_to_cash",
     "transfer_between_envelopes",
     "assign_to_envelope",

@@ -9,6 +9,7 @@ from budget_app.repositories.envelope_repo import (
 )
 from budget_app.repositories.transaction_repo import create_transaction
 from budget_app.schemas import (
+    AccountType,
     EnvelopeBase,
     LedgerRequest,
     TransactionRequest,
@@ -47,6 +48,11 @@ class TestCreateEnvelope:
 
         assert envelope is not None
         assert envelope.is_active is False
+
+    def test_create_envelope_starting_balance_is_zero(self, session):
+        env_info = EnvelopeBase(name="ZeroBalEnv")
+        envelope = env_service.create_envelope(session, env_info)
+        assert get_balance_for_envelope(session, envelope) == Decimal("0")
 
 
 class TestAddToCash:
@@ -239,3 +245,114 @@ class TestTransferBetweenEnvelopes:
         )
         assert result.new_balance_src == Decimal("425")
         assert result.new_balance_dest == Decimal("75")
+
+
+class TestDeactivateEnvelope:
+    def test_deactivate_envelope_zero_balance_success(self, session):
+        env = env_service.create_envelope(session, EnvelopeBase(name="Subscriptions"))
+        assert env.is_active is True
+
+        deactivated = env_service.deactivate_envelope(session, "Subscriptions")
+        assert deactivated.is_active is False
+
+    def test_deactivate_envelope_strips_whitespace(self, session):
+        env_service.create_envelope(session, EnvelopeBase(name="Online Courses"))
+        deactivated = env_service.deactivate_envelope(session, "  Online Courses  ")
+        assert deactivated.is_active is False
+
+    def test_deactivate_already_inactive_returns_envelope(self, session):
+        env = env_service.create_envelope(
+            session, EnvelopeBase(name="OldProject", is_active=False)
+        )
+        assert env.is_active is False
+
+        result = env_service.deactivate_envelope(session, "OldProject")
+        assert result.id == env.id
+        assert result.is_active is False
+
+    def test_deactivate_envelope_with_positive_balance_raises_error(self, session):
+        env_service.add_to_cash(session, Decimal("500"), "Income")
+        env_service.create_envelope(session, EnvelopeBase(name="Dining"))
+        env_service.assign_to_envelope(
+            session, destination="Dining", amount=Decimal("100")
+        )
+
+        with pytest.raises(
+            ValueError, match="has a balance .* needs to be zero before deactivating"
+        ):
+            env_service.deactivate_envelope(session, "Dining")
+
+    def test_deactivate_unassigned_raises_error(self, session):
+        with pytest.raises(
+            ValueError, match="Cannot deactivate system envelope 'Unassigned'"
+        ):
+            env_service.deactivate_envelope(session, "Unassigned")
+
+    def test_deactivate_credit_card_payment_raises_error(self, session):
+        with pytest.raises(
+            ValueError,
+            match="Cannot deactivate system envelope 'Credit Card Payment'",
+        ):
+            env_service.deactivate_envelope(session, "Credit Card Payment")
+
+    def test_deactivate_envelope_linked_to_account_raises_error(self, session):
+        custom_env = env_service.create_envelope(
+            session, EnvelopeBase(name="Store Card Payment")
+        )
+        acc = Account(
+            name="Store Card",
+            account_type=AccountType.CREDIT_CARD,
+            current_balance=Decimal("0"),
+            envelope_id=custom_env.id,
+        )
+        session.add(acc)
+        session.commit()
+        session.refresh(acc)
+
+        with pytest.raises(
+            ValueError,
+            match="Cannot deactivate envelope .* linked to account 'Store Card'",
+        ):
+            env_service.deactivate_envelope(session, "Store Card Payment")
+
+    def test_deactivate_empty_name_raises_error(self, session):
+        with pytest.raises(ValueError, match="envelope name cannot be empty"):
+            env_service.deactivate_envelope(session, "   ")
+
+    def test_deactivate_nonexistent_envelope_raises_error(self, session):
+        with pytest.raises(ValueError, match="envelope 'GhostEnvelope' does not exist"):
+            env_service.deactivate_envelope(session, "GhostEnvelope")
+
+
+class TestActivateEnvelope:
+    def test_activate_envelope_success(self, session):
+        env = env_service.create_envelope(
+            session, EnvelopeBase(name="DormantEnv", is_active=False)
+        )
+        assert env.is_active is False
+
+        activated = env_service.activate_envelope(session, "DormantEnv")
+        assert activated.is_active is True
+
+    def test_activate_envelope_strips_whitespace(self, session):
+        env_service.create_envelope(
+            session, EnvelopeBase(name="TrimActivation", is_active=False)
+        )
+        activated = env_service.activate_envelope(session, "  TrimActivation  ")
+        assert activated.is_active is True
+
+    def test_activate_already_active_returns_envelope(self, session):
+        env = env_service.create_envelope(session, EnvelopeBase(name="ActiveEnv"))
+        assert env.is_active is True
+
+        result = env_service.activate_envelope(session, "ActiveEnv")
+        assert result.id == env.id
+        assert result.is_active is True
+
+    def test_activate_empty_name_raises_error(self, session):
+        with pytest.raises(ValueError, match="envelope name cannot be empty"):
+            env_service.activate_envelope(session, "")
+
+    def test_activate_nonexistent_envelope_raises_error(self, session):
+        with pytest.raises(ValueError, match="envelope 'NoSuchEnv' does not exist"):
+            env_service.activate_envelope(session, "NoSuchEnv")

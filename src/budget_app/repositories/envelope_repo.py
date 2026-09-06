@@ -84,17 +84,22 @@ def get_or_create_envelope(session: Session, new_envelope: EnvelopeBase) -> Enve
 def get_balance_for_envelope(session: Session, cur_envelope: Envelope) -> Decimal:
     """Calculates the current net balance of an envelope by summing all its ledger entries.
 
+    If an envelope has no associated ledger entries, its balance is $0.
+
     Args:
         session: Active SQLModel database session.
         cur_envelope: Envelope instance whose balance is to be aggregated.
 
     Returns:
-        The sum of all Ledger.amount entries associated with the envelope as Decimal.
+        The sum of all Ledger.amount entries associated with the envelope as Decimal,
+        or Decimal("0") if there are no ledger entries.
     """
     statement = select(func.sum(Ledger.amount)).where(
         Ledger.envelope_id == cur_envelope.id
     )
 
     result = session.exec(statement).one()
-    return result
+    if result is None:
+        return Decimal("0")
+    return Decimal(result)
 

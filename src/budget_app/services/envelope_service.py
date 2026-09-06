@@ -21,6 +21,8 @@ from budget_app.schemas import (
     TransactionType,
 )
 
+SYSTEM_ENVELOPES: frozenset[str] = frozenset({"Unassigned", "Credit Card Payment"})
+
 
 def create_envelope(
 
@@ -224,6 +226,90 @@ def assign_to_envelope(
         destination=destination,
         amount=amount,
     )
+
+def deactivate_envelope(session: Session, envelope_name: str) -> Envelope:
+    """Deactivates an envelope if its current balance is zero.
+
+    Args:
+        session: Active SQLModel database session.
+        envelope_name: Name of the envelope to deactivate.
+
+    Returns:
+        The deactivated (or already inactive) Envelope instance.
+
+    Raises:
+        ValueError: If envelope name is empty/whitespace, envelope does not exist,
+            envelope is a protected system or linked envelope, or balance is non-zero.
+    """
+    if not envelope_name or not envelope_name.strip():
+        raise ValueError("deactivate_envelope: envelope name cannot be empty")
+
+    envelope_name = envelope_name.strip()
+
+    if envelope_name in SYSTEM_ENVELOPES:
+        raise ValueError(f"Cannot deactivate system envelope '{envelope_name}'")
+
+    target_envelope: Envelope | None = envelope_repo.get_envelope_by_name(
+        session, envelope_name
+    )
+
+    if not target_envelope:
+        raise ValueError(f"envelope '{envelope_name}' does not exist")
+
+    if target_envelope.account is not None:
+        raise ValueError(
+            f"Cannot deactivate envelope '{envelope_name}' linked to account '{target_envelope.account.name}'"
+        )
+
+    if not target_envelope.is_active:
+        return target_envelope
+
+    current_balance = envelope_repo.get_balance_for_envelope(session, target_envelope)
+    if current_balance != Decimal("0"):
+        raise ValueError(
+            f"envelope '{envelope_name}' has a balance ({current_balance}), needs to be zero before deactivating"
+        )
+
+    target_envelope.is_active = False
+    session.add(target_envelope)
+    session.commit()
+    session.refresh(target_envelope)
+    return target_envelope
+
+
+def activate_envelope(session: Session, envelope_name: str) -> Envelope:
+    """Activates an envelope.
+
+    Args:
+        session: Active SQLModel database session.
+        envelope_name: Name of the envelope to activate.
+
+    Returns:
+        The activated (or already active) Envelope instance.
+
+    Raises:
+        ValueError: If envelope name is empty/whitespace or envelope does not exist.
+    """
+    if not envelope_name or not envelope_name.strip():
+        raise ValueError("activate_envelope: envelope name cannot be empty")
+
+    envelope_name = envelope_name.strip()
+
+    target_envelope: Envelope | None = envelope_repo.get_envelope_by_name(
+        session, envelope_name
+    )
+
+    if not target_envelope:
+        raise ValueError(f"envelope '{envelope_name}' does not exist")
+
+    if target_envelope.is_active:
+        return target_envelope
+
+    target_envelope.is_active = True
+    session.add(target_envelope)
+    session.commit()
+    session.refresh(target_envelope)
+    return target_envelope
 
 
 transfer_from_unassigned = assign_to_envelope
