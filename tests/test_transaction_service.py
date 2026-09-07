@@ -1799,10 +1799,8 @@ class TestEnvelopeSplitUbiquitousLanguage:
 
     def test_add_transaction_with_splits_and_envelope_split_request(self, session):
         cash = get_or_create_account(session, "Cash", AccountType.CASH)
-        cash.current_balance = Decimal("1000.00")
+        envelope_service.add_to_cash(session, Decimal("1000.00"), "Starting Funds")
         env = get_or_create_envelope(session, "Groceries")
-        session.add(cash)
-        session.commit()
 
         split1 = EnvelopeSplitRequest(amount=Decimal("-45.50"), envelope_name="Groceries")
         tx_req = TransactionRequest(
@@ -1852,11 +1850,9 @@ class TestEnvelopeSplitUbiquitousLanguage:
 
     def test_update_transaction_with_splits(self, session):
         cash = get_or_create_account(session, "Cash", AccountType.CASH)
-        cash.current_balance = Decimal("500.00")
+        envelope_service.add_to_cash(session, Decimal("500.00"), "Initial Deposit")
         get_or_create_envelope(session, "Groceries")
         get_or_create_envelope(session, "Dining")
-        session.add(cash)
-        session.commit()
 
         tx_req = TransactionRequest(
             merchant="Original Merchant",
@@ -1881,10 +1877,8 @@ class TestEnvelopeSplitUbiquitousLanguage:
 
     def test_delete_transaction_reversal_with_splits(self, session):
         cash = get_or_create_account(session, "Cash", AccountType.CASH)
-        cash.current_balance = Decimal("500.00")
+        envelope_service.add_to_cash(session, Decimal("500.00"), "Initial Deposit")
         get_or_create_envelope(session, "Groceries")
-        session.add(cash)
-        session.commit()
 
         tx_req = TransactionRequest(
             merchant="Reversible Merchant",

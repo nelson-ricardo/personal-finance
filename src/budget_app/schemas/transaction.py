@@ -22,6 +22,8 @@ class TransactionType(str, Enum):
     TRANSFER = "TRANSFER"
     FINANCED = "FINANCED"
     REVERSAL = "REVERSAL"
+    INTEREST_CHARGE = "INTEREST_CHARGE"
+    INTEREST_EARNED = "INTEREST_EARNED"
 
 
 class TransactionBase(SQLModel):

@@ -298,6 +298,13 @@ class TestDeactivateEnvelope:
         ):
             env_service.deactivate_envelope(session, "Credit Card Payment")
 
+    def test_deactivate_account_adjustment_raises_error(self, session):
+        with pytest.raises(
+            ValueError,
+            match="Cannot deactivate system envelope 'Account Adjustment'",
+        ):
+            env_service.deactivate_envelope(session, "Account Adjustment")
+
     def test_deactivate_envelope_linked_to_account_raises_error(self, session):
         custom_env = env_service.create_envelope(
             session, EnvelopeBase(name="Store Card Payment")
@@ -479,6 +486,12 @@ class TestPermaDeleteEnvelope:
         ):
             env_service.perma_delete_envelope(session, "Credit Card Payment")
 
+    def test_perma_delete_account_adjustment_raises_error(self, session):
+        with pytest.raises(
+            ValueError, match="Cannot delete system envelope 'Account Adjustment'"
+        ):
+            env_service.perma_delete_envelope(session, "Account Adjustment")
+
     def test_perma_delete_linked_envelope_raises_error(self, session):
         custom_env = env_service.create_envelope(
             session, EnvelopeBase(name="TargetCard Payment")
@@ -604,6 +617,32 @@ class TestUpdateEnvelopeInfo:
                 session,
                 target_name="MySavings",
                 envelope_info=EnvelopeUpdate(name="Unassigned"),
+            )
+
+    def test_update_envelope_rename_account_adjustment_raises_error(self, session):
+        env_service.create_envelope(session, EnvelopeBase(name="Account Adjustment"))
+        with pytest.raises(
+            ValueError, match="Cannot rename system envelope 'Account Adjustment'"
+        ):
+            env_service.update_envelope_info(
+                session,
+                target_name="Account Adjustment",
+                envelope_info=EnvelopeUpdate(name="CustomAdjustment"),
+            )
+
+    def test_update_envelope_rename_to_account_adjustment_raises_error(self, session):
+        env_service.create_envelope(session, EnvelopeBase(name="MyAdjustments"))
+
+        with pytest.raises(
+            ValueError,
+            match=(
+                "Cannot rename envelope to protected system name 'Account Adjustment'"
+            ),
+        ):
+            env_service.update_envelope_info(
+                session,
+                target_name="MyAdjustments",
+                envelope_info=EnvelopeUpdate(name="Account Adjustment"),
             )
 
     def test_update_envelope_empty_target_name_raises_error(self, session):

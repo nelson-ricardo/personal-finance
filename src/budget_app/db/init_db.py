@@ -41,7 +41,18 @@ def init_db(session: Session) -> None:
         )
         print("Credit card payment envelope created.")
 
-    # 3. Ensure the primary 'Cash' account exists
+    # 3. Ensure the default 'Account Adjustment' system envelope exists
+    if not envelope_repo.get_envelope_by_name(session, "Account Adjustment"):
+        envelope_service.create_envelope(
+            session,
+            EnvelopeBase(
+                name="Account Adjustment",
+                note="system envelope for absorbing account-only balance adjustments",
+            ),
+        )
+        print("Account Adjustment envelope created.")
+
+    # 4. Ensure the primary 'Cash' account exists
     if not account_repo.get_account_by_name(session, "Cash"):
         account_service.create_account(
             session,

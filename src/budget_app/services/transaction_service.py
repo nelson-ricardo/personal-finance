@@ -75,18 +75,13 @@ def add_reg_transaction(session: Session, transaction: TransactionRequest) -> Tr
     master_transaction: Transaction = transaction_repo.create_transaction(session, transaction)
 
     # move money to credit card payment to balance the transaction out
-    # or remove money from cash account if it is a cash payment
     if payment_method.account_type is AccountType.CREDIT_CARD:
         cc_payment = envelope_split_repo.add_envelope_split(
             session, 
             EnvelopeSplitRequest(amount=transaction_total, envelope_name="Credit Card Payment")
         )
         master_transaction.splits.append(cc_payment)
-        payment_method.current_balance += transaction_total
-    if payment_method.account_type is AccountType.CASH:
-        payment_method.current_balance -= transaction_total
 
-    session.add(payment_method)
     session.commit()
     session.refresh(master_transaction)
     return master_transaction
@@ -176,10 +171,6 @@ def add_financed_transaction(session: Session, transaction: FinancedTransaction)
         master_transaction_req
     )
 
-    # update the balance
-    payment_method.current_balance += transaction.amount
-    session.add(payment_method)
-
     session.commit()
     session.refresh(master_transaction)
     return master_transaction
@@ -202,10 +193,12 @@ def calculate_transaction_total(transaction: Transaction) -> Decimal:
     if not transaction.splits:
         return Decimal("0.00")
 
-    if transaction.transaction_type == TransactionType.FINANCED:
-        return abs(transaction.splits[0].amount)
-
-    if transaction.transaction_type == TransactionType.TRANSFER:
+    if transaction.transaction_type in (
+        TransactionType.FINANCED,
+        TransactionType.TRANSFER,
+        TransactionType.INTEREST_CHARGE,
+        TransactionType.INTEREST_EARNED,
+    ):
         return abs(transaction.splits[0].amount)
 
     is_credit_card = (
@@ -430,10 +423,7 @@ def delete_transaction(session: Session, transaction_id: int) -> Transaction:
             )
         )
 
-    # 2. Determine original total magnitude
-    tx_total = calculate_transaction_total(og_tx)
-
-    # 3. Create the compensating reversal transaction
+    # 2. Create the compensating reversal transaction
     rev_tx_req = TransactionRequest(
         merchant=f"Reversal: {og_tx.merchant}",
         logged_date=date.today(),
@@ -446,24 +436,8 @@ def delete_transaction(session: Session, transaction_id: int) -> Transaction:
     )
     reversal_tx = transaction_repo.create_transaction(session, rev_tx_req)
 
-    # 4. Reverse account balance changes accurately
-    account = og_tx.account
-    if og_tx.transaction_type == TransactionType.EXPENSE:
-        if account.account_type == AccountType.CASH:
-            account.current_balance += tx_total
-        elif account.account_type == AccountType.CREDIT_CARD:
-            account.current_balance -= tx_total
-
-    elif og_tx.transaction_type == TransactionType.INCOME:
-        if account.account_type == AccountType.CASH:
-            account.current_balance -= tx_total
-
-    elif og_tx.transaction_type == TransactionType.FINANCED:
-        account.current_balance -= tx_total
-
-    # 5. Mark original transaction as reversed in notes
+    # 4. Mark original transaction as reversed in notes
     og_tx.note = f"[REVERSED] {og_tx.note}" if og_tx.note else "[REVERSED]"
-    session.add(account)
     session.add(og_tx)
 
     session.commit()
@@ -649,32 +623,19 @@ def update_transaction(
                 raise ValueError(f"Envelope {split_req.envelope_name} does not exist.")
             envelopes_by_name[split_req.envelope_name] = env
 
-        # 1. Undo old financial impact on old account
-        old_account = tx.account
-        old_total = calculate_transaction_total(tx)
-
-        if tx.transaction_type == TransactionType.EXPENSE:
-            if old_account.account_type == AccountType.CASH:
-                old_account.current_balance += old_total
-            elif old_account.account_type == AccountType.CREDIT_CARD:
-                old_account.current_balance -= old_total
-        elif tx.transaction_type == TransactionType.INCOME:
-            if old_account.account_type == AccountType.CASH:
-                old_account.current_balance -= old_total
-
-        # 2. Delete old envelope splits
+        # 1. Delete old envelope splits
         for split in list(tx.splits):
             session.delete(split)
         tx.splits.clear()
 
-        # 3. Create new user envelope splits
+        # 2. Create new user envelope splits
         new_total = Decimal("0.00")
         for split_req in target_split_requests:
             env = envelopes_by_name[split_req.envelope_name]
             tx.splits.append(EnvelopeSplit(amount=split_req.amount, envelope=env))
             new_total += abs(split_req.amount)
 
-        # 4. If target account is CC and transaction is Expense, add balancing entry
+        # 3. If target account is CC and transaction is Expense, add balancing entry
         if (
             target_account.account_type == AccountType.CREDIT_CARD
             and tx.transaction_type == TransactionType.EXPENSE
@@ -684,22 +645,8 @@ def update_transaction(
             )
             tx.splits.append(EnvelopeSplit(amount=new_total, envelope=cc_env))
 
-        # 5. Apply new financial impact on target account
-        if tx.transaction_type == TransactionType.EXPENSE:
-            if target_account.account_type == AccountType.CASH:
-                target_account.current_balance -= new_total
-            elif target_account.account_type == AccountType.CREDIT_CARD:
-                target_account.current_balance += new_total
-        elif tx.transaction_type == TransactionType.INCOME:
-            if target_account.account_type == AccountType.CASH:
-                target_account.current_balance += new_total
-
         # Bind transaction to target account
         tx.account = target_account
-
-        session.add(old_account)
-        if target_account != old_account:
-            session.add(target_account)
 
     session.add(tx)
     session.commit()
@@ -842,16 +789,9 @@ def update_financed_transaction(
         target_envelope.note = f"{monthly_payment}/mo."
         session.add(target_envelope)
 
-    # Adjust Credit Card balances
+    # Bind target account if changed
     if target_account != old_account:
-        old_account.current_balance -= old_amount
-        target_account.current_balance += new_amount
-        session.add(old_account)
-        session.add(target_account)
         tx.account = target_account
-    elif new_amount != old_amount:
-        target_account.current_balance += (new_amount - old_amount)
-        session.add(target_account)
 
     # Update envelope splits in place
     if new_amount != old_amount or target_envelope != current_envelope:

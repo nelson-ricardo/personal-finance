@@ -25,7 +25,9 @@ from budget_app.schemas import (
     TransactionType,
 )
 
-SYSTEM_ENVELOPES: frozenset[str] = frozenset({"Unassigned", "Credit Card Payment"})
+SYSTEM_ENVELOPES: frozenset[str] = frozenset(
+    {"Unassigned", "Credit Card Payment", "Account Adjustment"}
+)
 
 
 def create_envelope(
@@ -107,10 +109,6 @@ def add_to_cash(
     master_transaction: Transaction = transaction_repo.create_transaction(
         session, master_tx_req
     )
-
-    # add money to the account
-    cash_account.current_balance += amount
-    session.add(cash_account)
 
     session.commit()
     session.refresh(master_transaction)

@@ -1,5 +1,4 @@
-"""Account database table model."""
-
+from decimal import Decimal
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlmodel import Field, Relationship
@@ -26,4 +25,19 @@ class Account(AccountBase, table=True):
 
     # One-to-many relationship with transactions where this account was the payment method
     transactions: List["Transaction"] = Relationship(back_populates="account")
+
+    @property
+    def current_balance(self) -> Decimal:
+        """Derived balance accessor computing from transactions or returning cached/in-memory balance."""
+        from sqlalchemy.orm import object_session
+        sess = object_session(self)
+        if sess is not None and self.id is not None:
+            from budget_app.repositories import account_repo
+            return account_repo.get_balance_for_account(sess, self)
+        return getattr(self, "_current_balance", Decimal("0.00"))
+
+    @current_balance.setter
+    def current_balance(self, value: Decimal) -> None:
+        self._current_balance = value
+
 
