@@ -1,8 +1,16 @@
 from decimal import Decimal
 import pytest
 from budget_app.repositories import envelope_repo
-from budget_app.schemas import AccountBase, AccountType
-from budget_app.services import account_service
+from budget_app.schemas import (
+    AccountBase,
+    AccountType,
+    AccountUpdate,
+    EnvelopeBase,
+    EnvelopeSplitRequest,
+    TransactionRequest,
+    TransactionType,
+)
+from budget_app.services import account_service, envelope_service, transaction_service
 
 
 class TestCreateAccount:
@@ -204,3 +212,144 @@ class TestInterestAdjustments:
         )
         with pytest.raises(ValueError, match="Interest earned amount must be greater than 0"):
             account_service.add_interest_earned(session, "CheckingAcct", Decimal("-1.00"))
+
+
+class TestAccountLifecycleAndFiltering:
+    def test_delete_account_no_transactions_success(self, session):
+        account_service.create_account(
+            session,
+            AccountBase(name="OldChecking", account_type=AccountType.CASH),
+        )
+        deleted = account_service.delete_account(session, "OldChecking")
+        assert deleted.is_active is False
+
+        # By default, get_all_accounts filters for active accounts only
+        active_accounts = account_service.get_all_accounts(session)
+        assert "OldChecking" not in [a.name for a in active_accounts]
+
+        # Explicitly fetching inactive accounts
+        inactive_accounts = account_service.get_all_accounts(session, is_active=False)
+        assert "OldChecking" in [a.name for a in inactive_accounts]
+
+        # Fetching all accounts regardless of active status
+        all_accounts = account_service.get_all_accounts(session, is_active=None)
+        assert "OldChecking" in [a.name for a in all_accounts]
+
+    def test_delete_account_with_starting_balance_success(self, session):
+        account_service.create_account(
+            session,
+            AccountBase(
+                name="InitialDebt",
+                account_type=AccountType.CREDIT_CARD,
+                current_balance=Decimal("250.00"),
+            ),
+        )
+        deleted = account_service.delete_account(session, "InitialDebt")
+        assert deleted.is_active is False
+        assert deleted.name == "InitialDebt"
+
+    def test_delete_account_with_expense_transaction_raises_error(self, session):
+        envelope_service.create_envelope(session, EnvelopeBase(name="Dining"))
+        account_service.create_account(
+            session,
+            AccountBase(name="SpendCard", account_type=AccountType.CREDIT_CARD),
+        )
+        tx_req = TransactionRequest(
+            merchant="Restaurant",
+            payment_method_name="SpendCard",
+            transaction_type=TransactionType.EXPENSE,
+            splits=[
+                EnvelopeSplitRequest(
+                    amount=Decimal("-40.00"), envelope_name="Dining"
+                )
+            ],
+        )
+        transaction_service.add_reg_transaction(session, tx_req)
+
+        with pytest.raises(
+            ValueError,
+            match="Cannot delete account 'SpendCard' with associated transactions",
+        ):
+            account_service.delete_account(session, "SpendCard")
+
+    def test_delete_account_with_interest_charge_raises_error(self, session):
+        account_service.create_account(
+            session,
+            AccountBase(name="InterestLoan", account_type=AccountType.LOAN),
+        )
+        account_service.add_interest_charge(
+            session, "InterestLoan", Decimal("15.00")
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Cannot delete account 'InterestLoan' with associated transactions",
+        ):
+            account_service.delete_account(session, "InterestLoan")
+
+    def test_delete_default_cash_raises_error(self, session):
+        with pytest.raises(
+            ValueError,
+            match="Cannot delete or archive the default 'Cash' account",
+        ):
+            account_service.delete_account(session, "Cash")
+
+    def test_delete_nonexistent_account_raises_error(self, session):
+        with pytest.raises(ValueError, match="Account 'GhostBank' does not exist"):
+            account_service.delete_account(session, "GhostBank")
+
+    def test_activate_account(self, session):
+        account_service.create_account(
+            session,
+            AccountBase(name="DormantChecking", account_type=AccountType.CASH),
+        )
+        account_service.delete_account(session, "DormantChecking")
+        dormant = account_service.get_account(
+            session, "DormantChecking", is_active=True
+        )
+        assert dormant is None
+
+        reactivated = account_service.activate_account(session, "DormantChecking")
+        assert reactivated.is_active is True
+        active_dormant = account_service.get_account(
+            session, "DormantChecking", is_active=True
+        )
+        assert active_dormant is not None
+
+    def test_update_account_name(self, session):
+        account_service.create_account(
+            session,
+            AccountBase(name="OldName", account_type=AccountType.CASH),
+        )
+        updated = account_service.update_account(
+            session,
+            target_name="OldName",
+            account_info=AccountUpdate(name="NewName"),
+        )
+        assert updated.name == "NewName"
+        assert account_service.get_account(session, "NewName") is not None
+        assert account_service.get_account(session, "OldName") is None
+
+    def test_update_account_rename_cash_raises_error(self, session):
+        with pytest.raises(
+            ValueError, match="Cannot rename the default 'Cash' account"
+        ):
+            account_service.update_account(
+                session,
+                target_name="Cash",
+                account_info=AccountUpdate(name="PhysicalCash"),
+            )
+
+    def test_update_account_deactivate_via_is_active_flag(self, session):
+        account_service.create_account(
+            session,
+            AccountBase(name="FlagTest", account_type=AccountType.CASH),
+        )
+        updated = account_service.update_account(
+            session,
+            target_name="FlagTest",
+            account_info=AccountUpdate(is_active=False),
+        )
+        assert updated.is_active is False
+        active_names = [a.name for a in account_service.get_all_accounts(session)]
+        assert "FlagTest" not in active_names

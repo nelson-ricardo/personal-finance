@@ -6,12 +6,16 @@ from budget_app.services import (
     transaction_service,
 )
 from budget_app.services.account_service import (
+    activate_account,
     add_interest_charge,
     add_interest_earned,
+    archive_account,
     create_account,
+    delete_account,
     get_account,
     get_account_balance,
     get_all_accounts,
+    update_account,
 )
 from budget_app.services.envelope_service import (
     activate_envelope,
@@ -51,6 +55,10 @@ __all__ = [
     "envelope_service",
     "transaction_service",
     "create_account",
+    "activate_account",
+    "archive_account",
+    "delete_account",
+    "update_account",
     "add_interest_charge",
     "add_interest_earned",
     "get_account",

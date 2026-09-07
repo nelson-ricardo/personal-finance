@@ -54,6 +54,21 @@ class AccountBase(SQLModel):
         default=None,
         description="Next payment due date",
     )
+    is_active: bool = Field(
+        default=True,
+        description="Flag indicating whether this account is active",
+    )
+
+
+class AccountUpdate(SQLModel):
+    """Schema for updating account details."""
+
+    name: Optional[str] = Field(default=None, description="New display name")
+    is_active: Optional[bool] = Field(default=None, description="Active status")
+    total_statement_balance: Optional[Decimal] = Field(default=None)
+    interest_saving_balance: Optional[Decimal] = Field(default=None)
+    monthly_payment: Optional[Decimal] = Field(default=None)
+    due_date: Optional[date] = Field(default=None)
 
 
 class AccountCreate(AccountBase):

@@ -130,18 +130,43 @@ def get_account_by_id(session: Session, account_id: int) -> Account | None:
     return ret_account
 
 
-def get_accounts(session: Session) -> List[Account]:
-    """Fetches all accounts from the database ordered by name, attaching derived balances."""
-    stmt = select(Account).order_by(Account.name)
+def get_accounts(
+    session: Session, is_active: bool | None = True
+) -> List[Account]:
+    """Fetches accounts from database ordered by name, optionally filtered by is_active.
+
+    Args:
+        session: Active SQLModel database session.
+        is_active: Optional boolean filter. If None, returns all accounts.
+            Defaults to True (active accounts only).
+
+    Returns:
+        List of matching Account instances ordered by name.
+    """
+    stmt = select(Account)
+    if is_active is not None:
+        stmt = stmt.where(Account.is_active == is_active)
+    stmt = stmt.order_by(Account.name)
     accounts = list(session.exec(stmt).all())
     for acc in accounts:
         acc.current_balance = get_balance_for_account(session, acc)
     return accounts
 
 
-def get_accounts_with_balances(session: Session) -> List[AccountWithBalance]:
-    """Fetches all accounts with dynamically computed balances."""
-    accounts = get_accounts(session)
+def get_accounts_with_balances(
+    session: Session, is_active: bool | None = True
+) -> List[AccountWithBalance]:
+    """Fetches accounts with dynamically computed balances.
+
+    Args:
+        session: Active SQLModel database session.
+        is_active: Optional boolean filter. If None, returns all accounts.
+            Defaults to True.
+
+    Returns:
+        List of AccountWithBalance instances.
+    """
+    accounts = get_accounts(session, is_active=is_active)
     result = []
     for acc in accounts:
         bal = get_balance_for_account(session, acc)
@@ -156,10 +181,33 @@ def get_accounts_with_balances(session: Session) -> List[AccountWithBalance]:
                     interest_saving_balance=acc.interest_saving_balance,
                     monthly_payment=acc.monthly_payment,
                     due_date=acc.due_date,
+                    is_active=acc.is_active,
                     envelope_id=acc.envelope_id,
                 )
             )
     return result
+
+
+def has_non_starting_transactions(session: Session, account_id: int) -> bool:
+    """Checks whether an account has any transactions other than Starting Balance transactions.
+
+    Args:
+        session: Active SQLModel database session.
+        account_id: Integer ID of the account.
+
+    Returns:
+        True if at least one transaction exists that is not a 'Starting Balance'
+        transaction, False otherwise.
+    """
+    stmt = (
+        select(Transaction.id)
+        .where(
+            Transaction.payment_method_id == account_id,
+            Transaction.merchant != "Starting Balance",
+        )
+        .limit(1)
+    )
+    return session.exec(stmt).first() is not None
 
 
 def create_account(session: Session, new_account: AccountBase) -> Account:

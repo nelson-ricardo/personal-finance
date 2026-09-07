@@ -11,6 +11,7 @@ from budget_app.repositories import account_repo, envelope_repo, transaction_rep
 from budget_app.schemas import (
     AccountBase,
     AccountType,
+    AccountUpdate,
     AccountWithBalance,
     EnvelopeBase,
     EnvelopeSplitRequest,
@@ -248,10 +249,24 @@ def get_account_balance(session: Session, account_name: str) -> Decimal:
     return account_repo.get_balance_for_account(session, account)
 
 
-def get_account(session: Session, account_name: str) -> AccountWithBalance | None:
-    """Fetches a single account by name with its derived balance."""
+def get_account(
+    session: Session, account_name: str, is_active: bool | None = None
+) -> AccountWithBalance | None:
+    """Fetches a single account by name with its derived balance.
+
+    Args:
+        session: Active SQLModel database session.
+        account_name: Name of the account.
+        is_active: Optional boolean filter. If provided, returns None if account's
+            active status does not match.
+
+    Returns:
+        AccountWithBalance instance, or None if not found or filtered out.
+    """
     account = account_repo.get_account_by_name(session, account_name)
     if not account or account.id is None:
+        return None
+    if is_active is not None and account.is_active != is_active:
         return None
     bal = account_repo.get_balance_for_account(session, account)
     return AccountWithBalance(
@@ -263,10 +278,174 @@ def get_account(session: Session, account_name: str) -> AccountWithBalance | Non
         interest_saving_balance=account.interest_saving_balance,
         monthly_payment=account.monthly_payment,
         due_date=account.due_date,
+        is_active=account.is_active,
         envelope_id=account.envelope_id,
     )
 
 
-def get_all_accounts(session: Session) -> List[AccountWithBalance]:
-    """Fetches all accounts with their dynamically derived balances."""
-    return account_repo.get_accounts_with_balances(session)
+def get_all_accounts(
+    session: Session, is_active: bool | None = True
+) -> List[AccountWithBalance]:
+    """Fetches accounts with their dynamically derived balances.
+
+    Args:
+        session: Active SQLModel database session.
+        is_active: Optional boolean filter. If None, returns all accounts. Defaults to True.
+
+    Returns:
+        List of AccountWithBalance instances.
+    """
+    return account_repo.get_accounts_with_balances(session, is_active=is_active)
+
+
+def delete_account(session: Session, account_name: str) -> Account:
+    """Soft-deletes (archives) an account by setting is_active=False.
+
+    Archiving/deletion is only permitted if the account has no associated transactions
+    aside from any STARTING_BALANCE transactions.
+
+    Args:
+        session: Active SQLModel database session.
+        account_name: Name of the account to archive.
+
+    Returns:
+        The archived Account instance with is_active=False.
+
+    Raises:
+        ValueError: If account does not exist, is the protected default 'Cash' account,
+            or has non-starting-balance transactions associated with it.
+    """
+    if not account_name or not account_name.strip():
+        raise ValueError("Account name cannot be empty")
+
+    name = account_name.strip()
+    account = account_repo.get_account_by_name(session, name)
+    if not account:
+        raise ValueError(f"Account '{name}' does not exist")
+
+    if account.name == "Cash":
+        raise ValueError("Cannot delete or archive the default 'Cash' account")
+
+    if account.id is not None and account_repo.has_non_starting_transactions(
+        session, account.id
+    ):
+        raise ValueError(
+            f"Cannot delete account '{account.name}' with associated transactions. "
+            "Only accounts with no transactions or starting balance transactions can be deleted."
+        )
+
+    account.is_active = False
+
+    # If linked to a custom payment envelope that is not a system envelope and has no balance
+    if account.envelope_id is not None:
+        linked_env = envelope_repo.get_envelope_by_id(session, account.envelope_id)
+        if (
+            linked_env is not None
+            and linked_env.name not in {"Unassigned", "Credit Card Payment", "Account Adjustment"}
+        ):
+            env_balance = envelope_repo.get_balance_for_envelope(session, linked_env)
+            if env_balance == Decimal("0"):
+                linked_env.is_active = False
+                session.add(linked_env)
+
+    session.add(account)
+    session.commit()
+    session.refresh(account)
+    return account
+
+
+def activate_account(session: Session, account_name: str) -> Account:
+    """Reactivates an archived account by setting is_active=True.
+
+    Args:
+        session: Active SQLModel database session.
+        account_name: Name of the account to reactivate.
+
+    Returns:
+        The reactivated Account instance with is_active=True.
+
+    Raises:
+        ValueError: If account does not exist.
+    """
+    if not account_name or not account_name.strip():
+        raise ValueError("Account name cannot be empty")
+
+    name = account_name.strip()
+    account = account_repo.get_account_by_name(session, name)
+    if not account:
+        raise ValueError(f"Account '{name}' does not exist")
+
+    account.is_active = True
+
+    # If linked to a custom payment envelope, reactivate it as well
+    if account.envelope_id is not None:
+        linked_env = envelope_repo.get_envelope_by_id(session, account.envelope_id)
+        if linked_env is not None and not linked_env.is_active:
+            linked_env.is_active = True
+            session.add(linked_env)
+
+    session.add(account)
+    session.commit()
+    session.refresh(account)
+    return account
+
+
+def update_account(
+    session: Session, target_name: str, account_info: AccountUpdate
+) -> Account:
+    """Updates account details (name, metadata, active status).
+
+    Args:
+        session: Active SQLModel database session.
+        target_name: Current name of the account to update.
+        account_info: AccountUpdate payload with optional new values.
+
+    Returns:
+        The updated Account instance.
+
+    Raises:
+        ValueError: If target account does not exist, name collision occurs,
+            or archiving rules are violated.
+    """
+    if not target_name or not target_name.strip():
+        raise ValueError("Account name cannot be empty")
+
+    target_name = target_name.strip()
+    account = account_repo.get_account_by_name(session, target_name)
+    if not account:
+        raise ValueError(f"Account '{target_name}' does not exist")
+
+    if account_info.name is not None:
+        new_name = account_info.name.strip()
+        if not new_name:
+            raise ValueError("Account name cannot be empty")
+        if target_name == "Cash" and new_name != "Cash":
+            raise ValueError("Cannot rename the default 'Cash' account")
+        if new_name != account.name:
+            existing = account_repo.get_account_by_name(session, new_name)
+            if existing is not None and existing.id != account.id:
+                raise ValueError(f"Account '{new_name}' already exists")
+            account.name = new_name
+
+    if account_info.is_active is not None:
+        if account_info.is_active is False and account.is_active:
+            return delete_account(session, account.name)
+        elif account_info.is_active is True and not account.is_active:
+            return activate_account(session, account.name)
+
+    if account_info.total_statement_balance is not None:
+        account.total_statement_balance = account_info.total_statement_balance
+    if account_info.interest_saving_balance is not None:
+        account.interest_saving_balance = account_info.interest_saving_balance
+    if account_info.monthly_payment is not None:
+        account.monthly_payment = account_info.monthly_payment
+    if account_info.due_date is not None:
+        account.due_date = account_info.due_date
+
+    session.add(account)
+    session.commit()
+    session.refresh(account)
+    return account
+
+
+archive_account = delete_account
