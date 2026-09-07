@@ -353,3 +353,166 @@ class TestAccountLifecycleAndFiltering:
         assert updated.is_active is False
         active_names = [a.name for a in account_service.get_all_accounts(session)]
         assert "FlagTest" not in active_names
+
+
+class TestMakePayment:
+    def test_make_payment_credit_card_flow(self, session):
+        # 1. Setup Cash account with funds and budget to Credit Card Payment
+        cash_bal_before = account_service.get_account_balance(session, "Cash")
+        envelope_service.add_to_cash(session, Decimal("1000.00"), "Paycheck")
+        envelope_service.assign_to_envelope(
+            session, destination="Credit Card Payment", amount=Decimal("200.00")
+        )
+
+        # 2. Setup Credit Card with $500 debt
+        account_service.create_account(
+            session,
+            AccountBase(
+                name="ChaseSapphire",
+                account_type=AccountType.CREDIT_CARD,
+                current_balance=Decimal("500.00"),
+            ),
+        )
+        assert (
+            account_service.get_account_balance(session, "ChaseSapphire")
+            == Decimal("500.00")
+        )
+
+        # 3. Make payment of $200
+        txs = account_service.make_payment(
+            session, target="ChaseSapphire", amount=Decimal("200.00")
+        )
+
+        # 4. Assert two transactions returned
+        assert len(txs) == 2
+        tx_pay, tx_bal = txs
+
+        # Cash outflow transaction
+        assert tx_pay.account.name == "Cash"
+        assert tx_pay.transaction_type == TransactionType.EXPENSE
+        assert len(tx_pay.splits) == 1
+        assert tx_pay.splits[0].envelope.name == "Credit Card Payment"
+        assert tx_pay.splits[0].amount == Decimal("-200.00")
+
+        # Card debt reduction transaction
+        assert tx_bal.account.name == "ChaseSapphire"
+        assert tx_bal.transaction_type == TransactionType.INCOME
+        assert len(tx_bal.splits) == 1
+        assert tx_bal.splits[0].envelope.name == "Account Adjustment"
+        assert tx_bal.splits[0].amount == Decimal("200.00")
+
+        # 5. Assert updated balances
+        # Cash net change: +1000 - 200 = +800
+        assert (
+            account_service.get_account_balance(session, "Cash")
+            == cash_bal_before + Decimal("800.00")
+        )
+        # Credit card debt decreased from $500 to $300
+        assert (
+            account_service.get_account_balance(session, "ChaseSapphire")
+            == Decimal("300.00")
+        )
+        # Payment envelope was consumed: 200 - 200 = 0
+        cc_env = envelope_repo.get_envelope_by_name(
+            session, "Credit Card Payment"
+        )
+        assert (
+            envelope_repo.get_balance_for_envelope(session, cc_env)
+            == Decimal("0.00")
+        )
+
+    def test_make_payment_loan_flow(self, session):
+        # 1. Setup Cash account with funds
+        cash_bal_before = account_service.get_account_balance(session, "Cash")
+        envelope_service.add_to_cash(session, Decimal("2500.00"), "Deposit")
+
+        # 2. Setup Loan (auto-creates a "CarLoan" envelope) with $10,000 debt
+        account_service.create_account(
+            session,
+            AccountBase(
+                name="CarLoan",
+                account_type=AccountType.LOAN,
+                current_balance=Decimal("10000.00"),
+            ),
+        )
+
+        # 3. Budget funds into the CarLoan envelope
+        envelope_service.assign_to_envelope(
+            session, destination="CarLoan", amount=Decimal("450.00")
+        )
+        car_env = envelope_repo.get_envelope_by_name(session, "CarLoan")
+        assert (
+            envelope_repo.get_balance_for_envelope(session, car_env)
+            == Decimal("450.00")
+        )
+
+        # 4. Make payment of $450
+        txs = account_service.make_payment(
+            session, target="CarLoan", amount=Decimal("450.00")
+        )
+        assert len(txs) == 2
+
+        # 5. Assert updated balances
+        # Cash net change: +2500 - 450 = +2050
+        assert (
+            account_service.get_account_balance(session, "Cash")
+            == cash_bal_before + Decimal("2050.00")
+        )
+        assert (
+            account_service.get_account_balance(session, "CarLoan")
+            == Decimal("9550.00")
+        )
+        assert (
+            envelope_repo.get_balance_for_envelope(session, car_env)
+            == Decimal("0.00")
+        )
+
+    def test_make_payment_target_not_found_raises_error(self, session):
+        with pytest.raises(ValueError, match="account GhostAccount does not exist"):
+            account_service.make_payment(
+                session, target="GhostAccount", amount=Decimal("100.00")
+            )
+
+    def test_make_payment_to_cash_account_raises_error(self, session):
+        account_service.create_account(
+            session,
+            AccountBase(name="Checking", account_type=AccountType.CASH),
+        )
+        with pytest.raises(
+            ValueError, match="is not a loan or credit card"
+        ):
+            account_service.make_payment(
+                session, target="Checking", amount=Decimal("50.00")
+            )
+
+    def test_make_payment_negative_amount_raises_error(self, session):
+        account_service.create_account(
+            session,
+            AccountBase(name="VisaCard", account_type=AccountType.CREDIT_CARD),
+        )
+        with pytest.raises(ValueError, match="positive value"):
+            account_service.make_payment(
+                session, target="VisaCard", amount=Decimal("-25.00")
+            )
+
+    def test_make_payment_zero_amount_raises_error(self, session):
+        account_service.create_account(
+            session,
+            AccountBase(name="MasterCard", account_type=AccountType.CREDIT_CARD),
+        )
+        with pytest.raises(ValueError, match="positive value"):
+            account_service.make_payment(
+                session, target="MasterCard", amount=Decimal("0.00")
+            )
+
+    def test_make_payment_to_inactive_account_raises_error(self, session):
+        account_service.create_account(
+            session,
+            AccountBase(name="ClosedCard", account_type=AccountType.CREDIT_CARD),
+        )
+        account_service.delete_account(session, "ClosedCard")
+
+        with pytest.raises(ValueError, match="inactive|archived"):
+            account_service.make_payment(
+                session, target="ClosedCard", amount=Decimal("50.00")
+            )

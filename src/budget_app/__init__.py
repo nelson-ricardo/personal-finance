@@ -72,6 +72,7 @@ from budget_app.services import (
     update_envelope_info,
     update_financed_transaction,
     update_transaction,
+    make_payment,
 )
 
 
@@ -155,6 +156,7 @@ __all__ = [
     "modify_transaction",
     "update_financed_transaction",
     "modify_financed_transaction",
+    "make_payment",
 ]
 
 

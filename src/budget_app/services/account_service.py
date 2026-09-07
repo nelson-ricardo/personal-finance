@@ -6,7 +6,7 @@ from typing import List
 
 from sqlmodel import Session
 
-from budget_app.models import Account, Transaction
+from budget_app.models import Account, Transaction, Envelope
 from budget_app.repositories import account_repo, envelope_repo, transaction_repo
 from budget_app.schemas import (
     AccountBase,
@@ -87,6 +87,11 @@ def create_account(
             session, EnvelopeBase(name="Credit Card Payment")
         )
         new_account.envelope_id = cc_envelope.id
+    elif acc_info.account_type == AccountType.LOAN:
+        payment_envelope = envelope_repo.get_or_create_envelope(
+            session, EnvelopeBase(name=acc_info.name)
+        )
+        new_account.envelope = payment_envelope
 
     session.commit()
     session.refresh(new_account)
@@ -447,5 +452,66 @@ def update_account(
     session.refresh(account)
     return account
 
+def make_payment(session: Session, target: str, amount: Decimal) -> List[Transaction]:
+    # fetch the account
+    target_account: Account | None = account_repo.get_account_by_name(session, target)
+
+    if not target_account:
+        raise ValueError(f"account {target} does not exist")
+
+    # ensure the account is a loan or a credit card and that it is active
+    if target_account.account_type not in (AccountType.LOAN, AccountType.CREDIT_CARD):
+        raise ValueError(f"account {target} is not a loan or credit card")
+
+    if not target_account.is_active:
+        raise ValueError(f"Cannot make payment to inactive/archived account '{target}'")
+
+    # ensure amount is positive
+    if amount <= 0:
+        raise ValueError("amount has to be a positive value")
+
+    # fetch envelope and ensure we have enough money to cover the amount
+    envelope: Envelope | None = target_account.envelope
+    if not envelope:
+        raise ValueError(f"account {target} does not have an envelope associated to it")
+
+    env_bal = envelope_repo.get_balance_for_envelope(session, envelope)
+    if amount > env_bal:
+        raise ValueError(f"Insufficient funds in envelope {envelope.name}: available {env_bal}, required {amount}")
+
+    # create the credit card payment transaction
+    tx_pay_req: TransactionRequest = TransactionRequest(
+        merchant=target,
+        note=f"payment for {target} account",
+        payment_method_name="Cash",
+        transaction_type=TransactionType.EXPENSE,
+        splits=[
+            EnvelopeSplitRequest(
+                amount=Decimal(-amount),
+                envelope_name=envelope.name
+            )
+        ]
+    )
+
+    tx_bal_adj: TransactionRequest = TransactionRequest(
+        merchant=target,
+        note=f"payment for {target} account",
+        payment_method_name=target,
+        transaction_type=TransactionType.INCOME,
+        splits=[
+            EnvelopeSplitRequest(
+                amount=Decimal(amount),
+                envelope_name="Account Adjustment"
+            )
+        ]
+    )
+
+    tx_pay: Transaction = transaction_repo.create_transaction(session, tx_pay_req)
+    tx_bal: Transaction = transaction_repo.create_transaction(session, tx_bal_adj)
+
+    session.commit()
+    session.refresh(tx_bal)
+    session.refresh(tx_pay)
+    return [tx_pay, tx_bal]
 
 archive_account = delete_account

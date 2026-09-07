@@ -16,6 +16,7 @@ from budget_app.services.account_service import (
     get_account_balance,
     get_all_accounts,
     update_account,
+    make_payment,
 )
 from budget_app.services.envelope_service import (
     activate_envelope,
@@ -92,6 +93,7 @@ __all__ = [
     "modify_transaction",
     "update_financed_transaction",
     "modify_financed_transaction",
+    "make_payment"
 ]
 
 
