@@ -3,7 +3,7 @@
 from datetime import date
 from sqlmodel import Session, col, select
 
-from budget_app.models import Ledger, Transaction
+from budget_app.models import EnvelopeSplit, Ledger, Transaction
 from budget_app.repositories import account_repo, envelope_repo
 from budget_app.schemas import TransactionRequest, TransactionType
 
@@ -11,14 +11,14 @@ from budget_app.schemas import TransactionRequest, TransactionType
 def create_transaction(
     session: Session, transaction_info: TransactionRequest
 ) -> Transaction:
-    """Creates and stages a master Transaction record with its child Ledger split entries.
+    """Creates and stages a master Transaction record with its child EnvelopeSplit entries.
 
-    Resolves payment method and envelope references, binds Ledger entries, and stages the
+    Resolves payment method and envelope references, binds EnvelopeSplit entries, and stages the
     Transaction in the current session.
 
     Args:
         session: Active SQLModel database session.
-        transaction_info: TransactionRequest containing merchant, dates, account name, and ledger splits.
+        transaction_info: TransactionRequest containing merchant, dates, account name, and envelope splits.
 
     Returns:
         The staged Transaction instance.
@@ -35,35 +35,36 @@ def create_transaction(
             f"Account {transaction_info.payment_method_name} does not exist."
         )
 
-    # 2. Resolve each envelope and instantiate Ledger entries
+    # 2. Resolve each envelope and instantiate EnvelopeSplit entries
     envelopes_by_name = {}
-    for entry in transaction_info.ledger_entries:
+    for entry in transaction_info.splits:
         env = envelope_repo.get_envelope_by_name(session, entry.envelope_name)
         if not env:
             raise ValueError(f"Envelope {entry.envelope_name} does not exist.")
         envelopes_by_name[entry.envelope_name] = env
 
-    ledger_entries_db = [
-        Ledger(
+    splits_db = [
+        EnvelopeSplit(
             amount=entry.amount, envelope=envelopes_by_name[entry.envelope_name]
         )
-        for entry in transaction_info.ledger_entries
+        for entry in transaction_info.splits
     ]
 
-    # 3. Create master Transaction entity bound to account and ledger splits
+    # 3. Create master Transaction entity bound to account and splits
     transaction: Transaction = Transaction(
         merchant=transaction_info.merchant,
         logged_date=transaction_info.logged_date,
         posted_date=transaction_info.posted_date,
         is_reconciled=transaction_info.is_reconciled,
         account=account,
-        entries=ledger_entries_db,
+        splits=splits_db,
         note=transaction_info.note,
         transaction_type=transaction_info.transaction_type,
     )
 
     session.add(transaction)
     return transaction
+
 
 
 
@@ -118,16 +119,17 @@ def get_transactions(
         )
 
     if envelope_id is not None:
-        subquery = select(Ledger.transaction_id).where(
-            col(Ledger.envelope_id) == envelope_id
+        subquery = select(EnvelopeSplit.transaction_id).where(
+            col(EnvelopeSplit.envelope_id) == envelope_id
         )
         if (
             exclude_balancing_for_envelope_id is not None
             and envelope_id == exclude_balancing_for_envelope_id
         ):
-            subquery = subquery.where(col(Ledger.amount) <= 0)
+            subquery = subquery.where(col(EnvelopeSplit.amount) <= 0)
 
         stmt = stmt.where(col(Transaction.id).in_(subquery))
+
 
 
     stmt = stmt.order_by(

@@ -5,7 +5,7 @@ from typing import List
 
 from sqlmodel import Session, func, select
 
-from budget_app.models import Envelope, Ledger
+from budget_app.models import Envelope, EnvelopeSplit, Ledger
 from budget_app.schemas import EnvelopeBase
 
 
@@ -83,26 +83,27 @@ def get_or_create_envelope(session: Session, new_envelope: EnvelopeBase) -> Enve
 
 
 def get_balance_for_envelope(session: Session, cur_envelope: Envelope) -> Decimal:
-    """Calculates the current net balance of an envelope by summing all its ledger entries.
+    """Calculates the current net balance of an envelope by summing all its split entries.
 
-    If an envelope has no associated ledger entries, its balance is $0.
+    If an envelope has no associated split entries, its balance is $0.
 
     Args:
         session: Active SQLModel database session.
         cur_envelope: Envelope instance whose balance is to be aggregated.
 
     Returns:
-        The sum of all Ledger.amount entries associated with the envelope as Decimal,
-        or Decimal("0") if there are no ledger entries.
+        The sum of all EnvelopeSplit.amount entries associated with the envelope as Decimal,
+        or Decimal("0") if there are no split entries.
     """
-    statement = select(func.sum(Ledger.amount)).where(
-        Ledger.envelope_id == cur_envelope.id
+    statement = select(func.sum(EnvelopeSplit.amount)).where(
+        EnvelopeSplit.envelope_id == cur_envelope.id
     )
 
     result = session.exec(statement).one()
     if result is None:
         return Decimal("0")
     return Decimal(result)
+
 
 def get_envelopes(session: Session, is_active: bool | None = None) -> List[Envelope]:
     """Fetches envelopes from the database, optionally filtered by active status.
@@ -123,18 +124,22 @@ def get_envelopes(session: Session, is_active: bool | None = None) -> List[Envel
     return list(results)
 
 
-def has_ledger_entries(session: Session, envelope_id: int) -> bool:
-    """Checks whether an envelope has any associated ledger entries.
+def has_splits(session: Session, envelope_id: int) -> bool:
+    """Checks whether an envelope has any associated split entries.
 
     Args:
         session: Active SQLModel database session.
         envelope_id: Integer ID of the envelope.
 
     Returns:
-        True if at least one Ledger entry exists for this envelope, False otherwise.
+        True if at least one EnvelopeSplit entry exists for this envelope, False otherwise.
     """
-    stmt = select(Ledger.id).where(Ledger.envelope_id == envelope_id).limit(1)
+    stmt = select(EnvelopeSplit.id).where(EnvelopeSplit.envelope_id == envelope_id).limit(1)
     return session.exec(stmt).first() is not None
+
+
+# Backward-compatible alias
+has_ledger_entries = has_splits
 
 
 def delete_envelope(session: Session, envelope: Envelope) -> None:

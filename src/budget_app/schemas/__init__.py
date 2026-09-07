@@ -7,6 +7,11 @@ from budget_app.schemas.envelope import(
     EnvelopeWithBalance,
     EnvelopeUpdate,
 )
+from budget_app.schemas.envelope_split import (
+    EnvelopeSplitBase,
+    EnvelopeSplitRequest,
+    EnvelopeSplitResponse,
+)
 from budget_app.schemas.ledger import LedgerBase, LedgerRequest, LedgerResponse
 from budget_app.schemas.transaction import (
     FinancedTransaction,
@@ -24,6 +29,9 @@ __all__ = [
     "AccountBase",
     "EnvelopeBase",
     "EnvelopeTransfer",
+    "EnvelopeSplitBase",
+    "EnvelopeSplitRequest",
+    "EnvelopeSplitResponse",
     "LedgerBase",
     "LedgerRequest",
     "LedgerResponse",

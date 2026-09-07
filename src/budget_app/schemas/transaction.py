@@ -3,11 +3,15 @@
 from datetime import date
 from decimal import Decimal
 from enum import Enum
-from typing import List, Optional
+from typing import Any, List, Optional
 
+from pydantic import model_validator
 from sqlmodel import Field, SQLModel
 
-from budget_app.schemas import ledger
+from budget_app.schemas.envelope_split import (
+    EnvelopeSplitRequest,
+    EnvelopeSplitResponse,
+)
 
 
 class TransactionType(str, Enum):
@@ -31,17 +35,38 @@ class TransactionBase(SQLModel):
 
 
 class TransactionRequest(TransactionBase):
-    """Payload for creating a regular transaction with ledger envelope splits.
+    """Payload for creating a regular transaction with envelope splits.
 
     Attributes:
         payment_method_name: Name of the account used (Cash, Credit Card).
         transaction_type: INCOME, EXPENSE, TRANSFER, or FINANCED.
-        ledger_entries: Envelope allocations and deduction/addition amounts.
+        splits: Envelope allocations and deduction/addition amounts.
     """
 
     payment_method_name: str = Field(description="Name of the paying or receiving Account")
     transaction_type: TransactionType = Field(description="Type classification of this transaction")
-    ledger_entries: List[ledger.LedgerRequest] = Field(description="Envelope allocations and amounts")
+    splits: List[EnvelopeSplitRequest] = Field(description="Envelope allocations and amounts")
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_legacy_split_names(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "splits" not in data:
+                if "ledger_entries" in data:
+                    data["splits"] = data["ledger_entries"]
+                elif "entries" in data:
+                    data["splits"] = data["entries"]
+        return data
+
+    @property
+    def ledger_entries(self) -> List[EnvelopeSplitRequest]:
+        """Backward-compatible alias for splits."""
+        return self.splits
+
+    @property
+    def entries(self) -> List[EnvelopeSplitRequest]:
+        """Backward-compatible alias for splits."""
+        return self.splits
 
 
 class FinancedTransaction(TransactionBase):
@@ -85,17 +110,33 @@ class TransactionResponse(TransactionBase):
 
 
 class TransactionDetailResponse(TransactionResponse):
-    """Detailed response model for a single transaction including its ledger split entries."""
+    """Detailed response model for a single transaction including its envelope split entries."""
 
-    entries: List[ledger.LedgerResponse] = Field(
+    splits: List[EnvelopeSplitResponse] = Field(
         default_factory=list,
-        description="List of ledger split entries with envelope and amount information",
+        description="List of envelope split entries with envelope and amount information",
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def handle_legacy_split_names(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "splits" not in data:
+                if "entries" in data:
+                    data["splits"] = data["entries"]
+                elif "ledger_entries" in data:
+                    data["splits"] = data["ledger_entries"]
+        return data
+
     @property
-    def ledger_entries(self) -> List[ledger.LedgerResponse]:
-        """Alias for entries."""
-        return self.entries
+    def entries(self) -> List[EnvelopeSplitResponse]:
+        """Alias for splits."""
+        return self.splits
+
+    @property
+    def ledger_entries(self) -> List[EnvelopeSplitResponse]:
+        """Backward-compatible alias for splits."""
+        return self.splits
 
 
 class TransactionUpdateRequest(SQLModel):
@@ -109,7 +150,7 @@ class TransactionUpdateRequest(SQLModel):
         note: Updated user notes or tags.
         is_reconciled: Updated reconciliation status.
         payment_method_name: Updated account name (Cash, Credit Card, etc.).
-        ledger_entries: Updated envelope allocations and split amounts.
+        splits: Updated envelope allocations and split amounts.
     """
 
     merchant: Optional[str] = Field(default=None, description="Payee, merchant, or income source name")
@@ -118,9 +159,31 @@ class TransactionUpdateRequest(SQLModel):
     note: Optional[str] = Field(default=None, description="Optional user notes or tags")
     is_reconciled: Optional[bool] = Field(default=None, description="Whether the transaction has been matched to bank records")
     payment_method_name: Optional[str] = Field(default=None, description="Name of the paying or receiving Account")
-    ledger_entries: Optional[List[ledger.LedgerRequest]] = Field(
+    splits: Optional[List[EnvelopeSplitRequest]] = Field(
         default=None, description="Updated envelope allocations and amounts"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_legacy_split_names(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "splits" not in data:
+                if "ledger_entries" in data:
+                    data["splits"] = data["ledger_entries"]
+                elif "entries" in data:
+                    data["splits"] = data["entries"]
+        return data
+
+    @property
+    def ledger_entries(self) -> Optional[List[EnvelopeSplitRequest]]:
+        """Backward-compatible alias for splits."""
+        return self.splits
+
+    @property
+    def entries(self) -> Optional[List[EnvelopeSplitRequest]]:
+        """Backward-compatible alias for splits."""
+        return self.splits
+
 
 
 class FinancedTransactionUpdateRequest(SQLModel):

@@ -8,7 +8,7 @@ from budget_app.schemas import EnvelopeBase
 
 if TYPE_CHECKING:
     from budget_app.models.account import Account
-    from budget_app.models.ledger import Ledger
+    from budget_app.models.envelope_split import EnvelopeSplit
 
 
 class Envelope(EnvelopeBase, table=True):
@@ -25,6 +25,11 @@ class Envelope(EnvelopeBase, table=True):
         back_populates="envelope", sa_relationship_kwargs={"uselist": False}
     )
 
-    # One-to-many relationship with all ledger splits allocated to this envelope
-    ledger_entries: List["Ledger"] = Relationship(back_populates="envelope")
+    # One-to-many relationship with all splits allocated to this envelope
+    splits: List["EnvelopeSplit"] = Relationship(back_populates="envelope")
+
+    @property
+    def ledger_entries(self) -> List["EnvelopeSplit"]:
+        """Backward-compatible alias for splits."""
+        return self.splits
 

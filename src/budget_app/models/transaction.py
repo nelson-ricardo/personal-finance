@@ -9,7 +9,7 @@ from budget_app.schemas import TransactionBase, TransactionType
 
 if TYPE_CHECKING:
     from budget_app.models.account import Account
-    from budget_app.models.ledger import Ledger
+    from budget_app.models.envelope_split import EnvelopeSplit
 
 
 class Transaction(TransactionBase, table=True):
@@ -17,7 +17,7 @@ class Transaction(TransactionBase, table=True):
 
     Encapsulates merchant, dates, reconciliation state, notes, payment account linkage,
     transaction classification (INCOME, EXPENSE, TRANSFER, FINANCED), and associated
-    ledger split entries.
+    envelope split entries.
     """
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -33,8 +33,14 @@ class Transaction(TransactionBase, table=True):
     # Link to payment method account
     account: "Account" = Relationship(back_populates="transactions")
 
-    # One-to-many relationship with child ledger split entries (cascades on delete)
-    entries: List["Ledger"] = Relationship(
+    # One-to-many relationship with child envelope split entries (cascades on delete)
+    splits: List["EnvelopeSplit"] = Relationship(
         back_populates="transaction", cascade_delete=True
     )
+
+    @property
+    def entries(self) -> List["EnvelopeSplit"]:
+        """Backward-compatible alias for splits."""
+        return self.splits
+
 

@@ -16,12 +16,13 @@ from budget_app.models import Account, Envelope, Transaction
 from budget_app.repositories import account_repo, envelope_repo, transaction_repo
 from budget_app.schemas import (
     EnvelopeBase,
+    EnvelopeSplitRequest,
     EnvelopeTransfer,
+    EnvelopeUpdate,
+    EnvelopeWithBalance,
     LedgerRequest,
     TransactionRequest,
     TransactionType,
-    EnvelopeWithBalance,
-    EnvelopeUpdate,
 )
 
 SYSTEM_ENVELOPES: frozenset[str] = frozenset({"Unassigned", "Credit Card Payment"})
@@ -92,14 +93,17 @@ def add_to_cash(
         raise RuntimeError("System error: Default 'Cash' account does not exist.")
 
     # create the master transaction to add money
-    entry: LedgerRequest = LedgerRequest(amount=amount, envelope_name="Unassigned")
+    entry: EnvelopeSplitRequest = EnvelopeSplitRequest(
+        amount=amount, envelope_name="Unassigned"
+    )
     master_tx_req: TransactionRequest = TransactionRequest(
         merchant=source,
         note=note,
         payment_method_name="Cash",
         transaction_type=TransactionType.INCOME,
-        ledger_entries=[entry],
+        splits=[entry],
     )
+
     master_transaction: Transaction = transaction_repo.create_transaction(
         session, master_tx_req
     )
@@ -175,10 +179,10 @@ def transfer_between_envelopes(
         )
 
     # create master transaction
-    ledger_entry_src: LedgerRequest = LedgerRequest(
+    split_entry_src: EnvelopeSplitRequest = EnvelopeSplitRequest(
         amount=amount * -1, envelope_name=source
     )
-    ledger_entry_dest: LedgerRequest = LedgerRequest(
+    split_entry_dest: EnvelopeSplitRequest = EnvelopeSplitRequest(
         amount=amount, envelope_name=destination
     )
 
@@ -186,8 +190,9 @@ def transfer_between_envelopes(
         merchant=f"transfer {source} -> {destination}",
         payment_method_name="Cash",
         transaction_type=TransactionType.TRANSFER,
-        ledger_entries=[ledger_entry_src, ledger_entry_dest],
+        splits=[split_entry_src, split_entry_dest],
     )
+
     master_transaction: Transaction = transaction_repo.create_transaction(
         session, transaction_request
     )
@@ -422,12 +427,13 @@ def perma_delete_envelope(session: Session, envelope_name: str) -> bool:
             f"Cannot delete envelope '{envelope_name}' linked to account '{target_envelope.account.name}'"
         )
 
-    if target_envelope.id is not None and envelope_repo.has_ledger_entries(
+    if target_envelope.id is not None and envelope_repo.has_splits(
         session, target_envelope.id
     ):
         raise ValueError(
             f"envelope '{envelope_name}' has transactions associated with it, deactivate it instead"
         )
+
 
     envelope_repo.delete_envelope(session, target_envelope)
     session.commit()

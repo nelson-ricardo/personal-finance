@@ -7,11 +7,14 @@ split expense handling, credit card balancing entries, and financed transaction 
 
 from budget_app import db, models, repositories, schemas, services
 from budget_app.db import engine, get_session, init_db
-from budget_app.models import Account, Envelope, Ledger, Transaction
+from budget_app.models import Account, Envelope, EnvelopeSplit, Ledger, Transaction
 from budget_app.schemas import (
     AccountBase,
     AccountType,
     EnvelopeBase,
+    EnvelopeSplitBase,
+    EnvelopeSplitRequest,
+    EnvelopeSplitResponse,
     EnvelopeTransfer,
     EnvelopeUpdate,
     EnvelopeWithBalance,
@@ -71,12 +74,16 @@ __all__ = [
     # Models
     "Account",
     "Envelope",
+    "EnvelopeSplit",
     "Ledger",
     "Transaction",
     # Schemas
     "AccountType",
     "AccountBase",
     "EnvelopeBase",
+    "EnvelopeSplitBase",
+    "EnvelopeSplitRequest",
+    "EnvelopeSplitResponse",
     "EnvelopeTransfer",
     "EnvelopeWithBalance",
     "EnvelopeUpdate",

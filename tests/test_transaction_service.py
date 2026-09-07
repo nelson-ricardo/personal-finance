@@ -3,15 +3,23 @@ from decimal import Decimal
 
 import pytest
 
-from budget_app.models import Account, Envelope, Transaction
-from budget_app.repositories import account_repo, envelope_repo, transaction_repo
+from budget_app.models import Account, Envelope, EnvelopeSplit, Transaction
+from budget_app.repositories import (
+    account_repo,
+    envelope_repo,
+    envelope_split_repo,
+    transaction_repo,
+)
 from budget_app.schemas import (
     AccountBase,
     AccountType,
     EnvelopeBase,
+    EnvelopeSplitRequest,
+    EnvelopeSplitResponse,
     FinancedTransaction,
     FinancedTransactionUpdateRequest,
     LedgerRequest,
+    TransactionDetailResponse,
     TransactionRequest,
     TransactionType,
     TransactionUpdateRequest,
@@ -1175,7 +1183,7 @@ class TestUpdateTransaction:
 
         assert tx.id is not None
         with pytest.raises(
-            ValueError, match="Cannot modify ledger entries of a reconciled transaction"
+            ValueError, match="Cannot modify (?:envelope splits|ledger entries) of a reconciled transaction"
         ):
             transaction_service.update_transaction(session, tx.id, update_req)
 
@@ -1448,7 +1456,7 @@ class TestUpdateTransaction:
         update_req = TransactionUpdateRequest(ledger_entries=[])
         assert tx.id is not None
         with pytest.raises(
-            ValueError, match="Transaction must have at least one ledger entry"
+            ValueError, match="Transaction must have at least one (?:envelope split|ledger entry)"
         ):
             transaction_service.update_transaction(session, tx.id, update_req)
 
@@ -1784,3 +1792,133 @@ class TestUpdateFinancedTransaction:
             session, financed_tx.id, update_req
         )
         assert updated_tx.note == "Updated via alias"
+
+
+class TestEnvelopeSplitUbiquitousLanguage:
+    """Tests confirming full support for EnvelopeSplit, splits, and backward compatibility."""
+
+    def test_add_transaction_with_splits_and_envelope_split_request(self, session):
+        cash = get_or_create_account(session, "Cash", AccountType.CASH)
+        cash.current_balance = Decimal("1000.00")
+        env = get_or_create_envelope(session, "Groceries")
+        session.add(cash)
+        session.commit()
+
+        split1 = EnvelopeSplitRequest(amount=Decimal("-45.50"), envelope_name="Groceries")
+        tx_req = TransactionRequest(
+            merchant="Trader Joe's",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            splits=[split1],
+        )
+
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+        assert tx.id is not None
+        assert len(tx.splits) == 1
+        assert len(tx.entries) == 1  # Backward compatibility property
+        assert isinstance(tx.splits[0], EnvelopeSplit)
+        assert tx.splits[0].amount == Decimal("-45.50")
+        assert cash.current_balance == Decimal("954.50")
+
+        # Test Envelope.splits relationship
+        session.refresh(env)
+        assert len(env.splits) >= 1
+        assert len(env.ledger_entries) == len(env.splits)
+
+    def test_get_transaction_by_id_returns_envelope_splits(self, session):
+        get_or_create_account(session, "Cash", AccountType.CASH)
+        get_or_create_envelope(session, "Dining")
+        get_or_create_envelope(session, "Fun")
+
+        tx_req = TransactionRequest(
+            merchant="Restaurant",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            splits=[
+                EnvelopeSplitRequest(amount=Decimal("-30.00"), envelope_name="Dining"),
+                EnvelopeSplitRequest(amount=Decimal("-20.00"), envelope_name="Fun"),
+            ],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+        assert tx.id is not None
+
+        detail = transaction_service.get_transaction_by_id(session, tx.id)
+        assert isinstance(detail, TransactionDetailResponse)
+        assert len(detail.splits) == 2
+        assert len(detail.entries) == 2  # Alias
+        assert len(detail.ledger_entries) == 2  # Alias
+        assert all(isinstance(s, EnvelopeSplitResponse) for s in detail.splits)
+        assert detail.total == Decimal("50.00")
+
+    def test_update_transaction_with_splits(self, session):
+        cash = get_or_create_account(session, "Cash", AccountType.CASH)
+        cash.current_balance = Decimal("500.00")
+        get_or_create_envelope(session, "Groceries")
+        get_or_create_envelope(session, "Dining")
+        session.add(cash)
+        session.commit()
+
+        tx_req = TransactionRequest(
+            merchant="Original Merchant",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            splits=[EnvelopeSplitRequest(amount=Decimal("-50.00"), envelope_name="Groceries")],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+        assert tx.id is not None
+
+        # Update using splits
+        update_req = TransactionUpdateRequest(
+            merchant="Updated Merchant",
+            splits=[EnvelopeSplitRequest(amount=Decimal("-80.00"), envelope_name="Dining")],
+        )
+        updated = transaction_service.update_transaction(session, tx.id, update_req)
+        assert updated.merchant == "Updated Merchant"
+        assert len(updated.splits) == 1
+        assert updated.splits[0].amount == Decimal("-80.00")
+        assert updated.splits[0].envelope.name == "Dining"
+        assert cash.current_balance == Decimal("420.00")
+
+    def test_delete_transaction_reversal_with_splits(self, session):
+        cash = get_or_create_account(session, "Cash", AccountType.CASH)
+        cash.current_balance = Decimal("500.00")
+        get_or_create_envelope(session, "Groceries")
+        session.add(cash)
+        session.commit()
+
+        tx_req = TransactionRequest(
+            merchant="Reversible Merchant",
+            payment_method_name="Cash",
+            transaction_type=TransactionType.EXPENSE,
+            splits=[EnvelopeSplitRequest(amount=Decimal("-60.00"), envelope_name="Groceries")],
+        )
+        tx = transaction_service.add_reg_transaction(session, tx_req)
+        assert tx.id is not None
+
+        rev_tx = transaction_service.delete_transaction(session, tx.id)
+        assert rev_tx.transaction_type == TransactionType.REVERSAL
+        assert len(rev_tx.splits) == 1
+        assert rev_tx.splits[0].amount == Decimal("60.00")
+        assert cash.current_balance == Decimal("500.00")
+
+    def test_envelope_split_repo_and_envelope_repo_has_splits(self, session):
+        env = get_or_create_envelope(session, "Utilities")
+        get_or_create_account(session, "Cash", AccountType.CASH)
+        transaction_repo.create_transaction(
+            session,
+            TransactionRequest(
+                merchant="Electric Co",
+                payment_method_name="Cash",
+                transaction_type=TransactionType.EXPENSE,
+                splits=[EnvelopeSplitRequest(amount=Decimal("-100"), envelope_name="Utilities")],
+            ),
+        )
+        assert envelope_repo.has_splits(session, env.id) is True
+        assert envelope_repo.has_ledger_entries(session, env.id) is True
+
+        new_split = envelope_split_repo.add_envelope_split(
+            session,
+            EnvelopeSplitRequest(amount=Decimal("-25.00"), envelope_name="Utilities"),
+        )
+        assert isinstance(new_split, EnvelopeSplit)
+        assert new_split.amount == Decimal("-25.00")

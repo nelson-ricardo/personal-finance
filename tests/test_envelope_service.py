@@ -11,6 +11,7 @@ from budget_app.repositories.transaction_repo import create_transaction
 from budget_app.schemas import (
     AccountType,
     EnvelopeBase,
+    EnvelopeSplitRequest,
     EnvelopeUpdate,
     EnvelopeWithBalance,
     LedgerRequest,
@@ -102,10 +103,10 @@ def transfer_setup(session):
     dest: Envelope = env_service.create_envelope(session, EnvelopeBase(name="Fun"))
     session.flush()
 
-    source_addition: LedgerRequest = LedgerRequest(
+    source_addition: EnvelopeSplitRequest = EnvelopeSplitRequest(
         amount=Decimal("500"), envelope_name="Groceries"
     )
-    dest_addition: LedgerRequest = LedgerRequest(
+    dest_addition: EnvelopeSplitRequest = EnvelopeSplitRequest(
         amount=Decimal("100"), envelope_name="Fun"
     )
 
@@ -114,7 +115,7 @@ def transfer_setup(session):
         note="For testing purposes only",
         payment_method_name="Cash",
         transaction_type=TransactionType.INCOME,
-        ledger_entries=[source_addition, dest_addition],
+        splits=[source_addition, dest_addition],
     )
 
     master_transaction: Transaction = create_transaction(session, tx)

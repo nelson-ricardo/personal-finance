@@ -12,16 +12,19 @@ from typing import List
 
 from sqlmodel import Session
 
-from budget_app.models import Account, Ledger, Transaction
+from budget_app.models import Account, EnvelopeSplit, Ledger, Transaction
 from budget_app.repositories import (
     account_repo,
     envelope_repo,
+    envelope_split_repo,
     ledger_repo,
     transaction_repo,
 )
 from budget_app.schemas import (
     AccountType,
     EnvelopeBase,
+    EnvelopeSplitRequest,
+    EnvelopeSplitResponse,
     FinancedTransaction,
     FinancedTransactionUpdateRequest,
     LedgerRequest,
@@ -45,7 +48,7 @@ def add_reg_transaction(session: Session, transaction: TransactionRequest) -> Tr
 
     Args:
         session: Active SQLModel database session.
-        transaction: TransactionRequest object containing payment method, ledger entries, etc.
+        transaction: TransactionRequest object containing payment method, envelope splits, etc.
 
     Returns:
         The created master Transaction instance.
@@ -66,19 +69,19 @@ def add_reg_transaction(session: Session, transaction: TransactionRequest) -> Tr
 
     # getting transaction total to add to cc payment or deduct from cash balance
     transaction_total = Decimal("0")
-    for entry in transaction.ledger_entries:
-        transaction_total += abs(entry.amount)
+    for split in transaction.splits:
+        transaction_total += abs(split.amount)
 
     master_transaction: Transaction = transaction_repo.create_transaction(session, transaction)
 
     # move money to credit card payment to balance the transaction out
     # or remove money from cash account if it is a cash payment
     if payment_method.account_type is AccountType.CREDIT_CARD:
-        cc_payment = ledger_repo.add_ledger_entry(
+        cc_payment = envelope_split_repo.add_envelope_split(
             session, 
-            LedgerRequest(amount=transaction_total, envelope_name="Credit Card Payment")
+            EnvelopeSplitRequest(amount=transaction_total, envelope_name="Credit Card Payment")
         )
-        master_transaction.entries.append(cc_payment)
+        master_transaction.splits.append(cc_payment)
         payment_method.current_balance += transaction_total
     if payment_method.account_type is AccountType.CASH:
         payment_method.current_balance -= transaction_total
@@ -148,11 +151,11 @@ def add_financed_transaction(session: Session, transaction: FinancedTransaction)
     ))
 
     # make the transaction
-    positive_entry = LedgerRequest(
+    positive_entry = EnvelopeSplitRequest(
         amount=transaction.amount,
         envelope_name=envelope_name
     )
-    negative_entry = LedgerRequest(
+    negative_entry = EnvelopeSplitRequest(
         amount=-1*transaction.amount,
         envelope_name=envelope_name
     )
@@ -165,7 +168,7 @@ def add_financed_transaction(session: Session, transaction: FinancedTransaction)
         is_reconciled=transaction.is_reconciled,
         payment_method_name=transaction.payment_method_name,
         transaction_type=TransactionType.FINANCED,
-        ledger_entries=[positive_entry, negative_entry]
+        splits=[positive_entry, negative_entry]
     )
 
     master_transaction: Transaction = transaction_repo.create_transaction(
@@ -191,19 +194,19 @@ def calculate_transaction_total(transaction: Transaction) -> Decimal:
     For transfers, returns the transferred amount.
 
     Args:
-        transaction: Transaction instance with populated entries and account relation.
+        transaction: Transaction instance with populated splits and account relation.
 
     Returns:
         The total transaction amount as a positive Decimal.
     """
-    if not transaction.entries:
+    if not transaction.splits:
         return Decimal("0.00")
 
     if transaction.transaction_type == TransactionType.FINANCED:
-        return abs(transaction.entries[0].amount)
+        return abs(transaction.splits[0].amount)
 
     if transaction.transaction_type == TransactionType.TRANSFER:
-        return abs(transaction.entries[0].amount)
+        return abs(transaction.splits[0].amount)
 
     is_credit_card = (
         transaction.account is not None
@@ -211,15 +214,15 @@ def calculate_transaction_total(transaction: Transaction) -> Decimal:
     )
 
     total = Decimal("0.00")
-    for entry in transaction.entries:
+    for split in transaction.splits:
         # Filter out the credit card payment balancing entry
         if (
             is_credit_card
-            and entry.envelope is not None
-            and entry.envelope.name == "Credit Card Payment"
+            and split.envelope is not None
+            and split.envelope.name == "Credit Card Payment"
         ):
             continue
-        total += abs(entry.amount)
+        total += abs(split.amount)
 
     return total
 
@@ -415,15 +418,15 @@ def delete_transaction(session: Session, transaction_id: int) -> Transaction:
     if not og_tx.account:
         raise ValueError(f"Transaction #{transaction_id} has no associated payment account.")
 
-    # 1. Reverse all child ledger entries with inverted signs
-    reverse_entries: list[LedgerRequest] = []
-    for entry in og_tx.entries:
-        if not entry.envelope:
-            raise ValueError(f"Envelope for ledger entry #{entry.id} not found.")
-        reverse_entries.append(
-            LedgerRequest(
-                amount=-1 * entry.amount,
-                envelope_name=entry.envelope.name,
+    # 1. Reverse all child envelope splits with inverted signs
+    reverse_splits: list[EnvelopeSplitRequest] = []
+    for split in og_tx.splits:
+        if not split.envelope:
+            raise ValueError(f"Envelope for envelope split #{split.id} not found.")
+        reverse_splits.append(
+            EnvelopeSplitRequest(
+                amount=-1 * split.amount,
+                envelope_name=split.envelope.name,
             )
         )
 
@@ -439,7 +442,7 @@ def delete_transaction(session: Session, transaction_id: int) -> Transaction:
         is_reconciled=False,
         payment_method_name=og_tx.account.name,
         transaction_type=TransactionType.REVERSAL,
-        ledger_entries=reverse_entries,
+        splits=reverse_splits,
     )
     reversal_tx = transaction_repo.create_transaction(session, rev_tx_req)
 
@@ -469,7 +472,7 @@ def delete_transaction(session: Session, transaction_id: int) -> Transaction:
 
 
 def get_transaction_by_id(session: Session, transaction_id: int) -> TransactionDetailResponse:
-    """Fetches a single transaction with its metadata, payment account name, and ledger split entries.
+    """Fetches a single transaction with its metadata, payment account name, and envelope split entries.
 
     Args:
         session: Active SQLModel database session.
@@ -477,7 +480,7 @@ def get_transaction_by_id(session: Session, transaction_id: int) -> TransactionD
 
     Returns:
         TransactionDetailResponse containing full transaction metadata, account name,
-        computed total, and list of child LedgerResponse entries with envelope information.
+        computed total, and list of child EnvelopeSplitResponse entries with envelope information.
 
     Raises:
         ValueError: If the transaction with the specified ID does not exist.
@@ -492,15 +495,15 @@ def get_transaction_by_id(session: Session, transaction_id: int) -> TransactionD
     if tx.id is None or tx.payment_method_id is None:
         raise ValueError(f"Transaction #{transaction_id} is missing required identifiers.")
 
-    ledger_entries = [
-        LedgerResponse(
-            id=entry.id,
-            amount=entry.amount,
-            envelope_id=entry.envelope_id,
-            envelope_name=entry.envelope.name if entry.envelope else "",
+    envelope_splits = [
+        EnvelopeSplitResponse(
+            id=split.id,
+            amount=split.amount,
+            envelope_id=split.envelope_id,
+            envelope_name=split.envelope.name if split.envelope else "",
         )
-        for entry in tx.entries
-        if entry.id is not None and entry.envelope_id is not None
+        for split in tx.splits
+        if split.id is not None and split.envelope_id is not None
     ]
 
     return TransactionDetailResponse(
@@ -514,7 +517,7 @@ def get_transaction_by_id(session: Session, transaction_id: int) -> TransactionD
         payment_method_name=payment_name,
         transaction_type=tx.transaction_type,
         total=total,
-        entries=ledger_entries,
+        splits=envelope_splits,
     )
 
 
@@ -565,9 +568,9 @@ def update_transaction(
 
     # Check reconciled constraints
     if tx.is_reconciled:
-        if updates.ledger_entries is not None:
+        if updates.splits is not None:
             raise ValueError(
-                "Cannot modify ledger entries of a reconciled transaction."
+                "Cannot modify envelope splits of a reconciled transaction."
             )
         if (
             updates.payment_method_name is not None
@@ -597,7 +600,7 @@ def update_transaction(
 
     # Determine if financial/structural updates are needed
     is_financial_update = (
-        updates.ledger_entries is not None
+        updates.splits is not None
         or (
             updates.payment_method_name is not None
             and updates.payment_method_name != tx.account.name
@@ -616,35 +619,35 @@ def update_transaction(
             target_account = acc
 
         # Resolve target splits
-        if updates.ledger_entries is not None:
-            if not updates.ledger_entries:
-                raise ValueError("Transaction must have at least one ledger entry.")
-            target_split_requests = updates.ledger_entries
+        if updates.splits is not None:
+            if not updates.splits:
+                raise ValueError("Transaction must have at least one envelope split.")
+            target_split_requests = updates.splits
         else:
             # Preserve existing splits, excluding CC payment balancing entry
             is_old_cc = tx.account.account_type == AccountType.CREDIT_CARD
             target_split_requests = []
-            for entry in tx.entries:
-                if not entry.envelope:
+            for split in tx.splits:
+                if not split.envelope:
                     raise ValueError(
-                        f"Envelope for ledger entry #{entry.id} not found."
+                        f"Envelope for envelope split #{split.id} not found."
                     )
-                if is_old_cc and entry.envelope.name == "Credit Card Payment":
+                if is_old_cc and split.envelope.name == "Credit Card Payment":
                     continue
                 target_split_requests.append(
-                    LedgerRequest(
-                        amount=entry.amount,
-                        envelope_name=entry.envelope.name,
+                    EnvelopeSplitRequest(
+                        amount=split.amount,
+                        envelope_name=split.envelope.name,
                     )
                 )
 
         # Validate that all envelopes exist
         envelopes_by_name = {}
-        for entry_req in target_split_requests:
-            env = envelope_repo.get_envelope_by_name(session, entry_req.envelope_name)
+        for split_req in target_split_requests:
+            env = envelope_repo.get_envelope_by_name(session, split_req.envelope_name)
             if not env:
-                raise ValueError(f"Envelope {entry_req.envelope_name} does not exist.")
-            envelopes_by_name[entry_req.envelope_name] = env
+                raise ValueError(f"Envelope {split_req.envelope_name} does not exist.")
+            envelopes_by_name[split_req.envelope_name] = env
 
         # 1. Undo old financial impact on old account
         old_account = tx.account
@@ -659,17 +662,17 @@ def update_transaction(
             if old_account.account_type == AccountType.CASH:
                 old_account.current_balance -= old_total
 
-        # 2. Delete old ledger splits
-        for entry in list(tx.entries):
-            session.delete(entry)
-        tx.entries.clear()
+        # 2. Delete old envelope splits
+        for split in list(tx.splits):
+            session.delete(split)
+        tx.splits.clear()
 
-        # 3. Create new user ledger splits
+        # 3. Create new user envelope splits
         new_total = Decimal("0.00")
-        for entry_req in target_split_requests:
-            env = envelopes_by_name[entry_req.envelope_name]
-            tx.entries.append(Ledger(amount=entry_req.amount, envelope=env))
-            new_total += abs(entry_req.amount)
+        for split_req in target_split_requests:
+            env = envelopes_by_name[split_req.envelope_name]
+            tx.splits.append(EnvelopeSplit(amount=split_req.amount, envelope=env))
+            new_total += abs(split_req.amount)
 
         # 4. If target account is CC and transaction is Expense, add balancing entry
         if (
@@ -679,7 +682,7 @@ def update_transaction(
             cc_env = envelope_repo.get_or_create_envelope(
                 session, EnvelopeBase(name="Credit Card Payment")
             )
-            tx.entries.append(Ledger(amount=new_total, envelope=cc_env))
+            tx.splits.append(EnvelopeSplit(amount=new_total, envelope=cc_env))
 
         # 5. Apply new financial impact on target account
         if tx.transaction_type == TransactionType.EXPENSE:
@@ -817,12 +820,12 @@ def update_financed_transaction(
         target_account = acc
 
     # Resolve envelope
-    if not tx.entries:
-        raise ValueError(f"Transaction #{transaction_id} has no ledger entries.")
-    first_entry = tx.entries[0]
-    if not first_entry.envelope:
+    if not tx.splits:
+        raise ValueError(f"Transaction #{transaction_id} has no envelope splits.")
+    first_split = tx.splits[0]
+    if not first_split.envelope:
         raise ValueError(f"Envelope for transaction #{transaction_id} not found.")
-    current_envelope = first_entry.envelope
+    current_envelope = first_split.envelope
 
     target_envelope = current_envelope
     if updates.envelope_name is not None and updates.envelope_name.strip():
@@ -850,15 +853,15 @@ def update_financed_transaction(
         target_account.current_balance += (new_amount - old_amount)
         session.add(target_account)
 
-    # Update ledger splits in place
+    # Update envelope splits in place
     if new_amount != old_amount or target_envelope != current_envelope:
-        for entry in tx.entries:
-            entry.envelope = target_envelope
-            if entry.amount > Decimal("0"):
-                entry.amount = new_amount
+        for split in tx.splits:
+            split.envelope = target_envelope
+            if split.amount > Decimal("0"):
+                split.amount = new_amount
             else:
-                entry.amount = -1 * new_amount
-            session.add(entry)
+                split.amount = -1 * new_amount
+            session.add(split)
 
     session.add(tx)
     session.commit()

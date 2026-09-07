@@ -3,6 +3,7 @@
 from budget_app.repositories import (
     account_repo,
     envelope_repo,
+    envelope_split_repo,
     ledger_repo,
     transaction_repo,
 )
@@ -10,7 +11,9 @@ from budget_app.repositories import (
 __all__ = [
     "account_repo",
     "envelope_repo",
+    "envelope_split_repo",
     "ledger_repo",
     "transaction_repo",
 ]
+
 
