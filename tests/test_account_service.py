@@ -516,3 +516,242 @@ class TestMakePayment:
             account_service.make_payment(
                 session, target="ClosedCard", amount=Decimal("50.00")
             )
+
+
+class TestAdjustAccountBalance:
+    def test_adjust_cash_balance_increase(self, session):
+        bal_before = account_service.get_account_balance(session, "Cash")
+        unassigned = envelope_repo.get_envelope_by_name(session, "Unassigned")
+        unassigned_bal_before = envelope_repo.get_balance_for_envelope(
+            session, unassigned
+        )
+
+        target = bal_before + Decimal("150.00")
+        tx = account_service.adjust_account_balance(
+            session, account_name="Cash", target_balance=target
+        )
+
+        assert tx is not None
+        assert tx.transaction_type == TransactionType.INCOME
+        assert tx.account.name == "Cash"
+        assert len(tx.splits) == 1
+        assert tx.splits[0].envelope.name == "Unassigned"
+        assert tx.splits[0].amount == Decimal("150.00")
+
+        # Check balances
+        assert account_service.get_account_balance(session, "Cash") == target
+        unassigned_bal_after = envelope_repo.get_balance_for_envelope(
+            session, unassigned
+        )
+        assert unassigned_bal_after == unassigned_bal_before + Decimal("150.00")
+
+    def test_adjust_cash_balance_decrease_with_envelope(self, session):
+        envelope_service.create_envelope(
+            session, EnvelopeBase(name="Miscellaneous")
+        )
+        envelope_service.add_to_cash(session, Decimal("500.00"), "Initial Deposit")
+        envelope_service.assign_to_envelope(
+            session, destination="Miscellaneous", amount=Decimal("200.00")
+        )
+        misc_env = envelope_repo.get_envelope_by_name(session, "Miscellaneous")
+        assert (
+            envelope_repo.get_balance_for_envelope(session, misc_env)
+            == Decimal("200.00")
+        )
+
+        bal_before = account_service.get_account_balance(session, "Cash")
+        target = bal_before - Decimal("75.00")
+
+        tx = account_service.adjust_account_balance(
+            session,
+            account_name="Cash",
+            target_balance=target,
+            envelope_name="Miscellaneous",
+        )
+
+        assert tx is not None
+        assert tx.transaction_type == TransactionType.EXPENSE
+        assert tx.account.name == "Cash"
+        assert len(tx.splits) == 1
+        assert tx.splits[0].envelope.name == "Miscellaneous"
+        assert tx.splits[0].amount == Decimal("-75.00")
+
+        assert account_service.get_account_balance(session, "Cash") == target
+        assert (
+            envelope_repo.get_balance_for_envelope(session, misc_env)
+            == Decimal("125.00")
+        )
+
+    def test_adjust_cash_balance_decrease_without_envelope_raises_error(
+        self, session
+    ):
+        bal_before = account_service.get_account_balance(session, "Cash")
+        with pytest.raises(
+            ValueError,
+            match="Cash reduction must specify an envelope to deduct funds from",
+        ):
+            account_service.adjust_account_balance(
+                session,
+                account_name="Cash",
+                target_balance=bal_before - Decimal("50.00"),
+            )
+
+    def test_adjust_cash_balance_decrease_with_account_adjustment_raises_error(
+        self, session
+    ):
+        bal_before = account_service.get_account_balance(session, "Cash")
+        with pytest.raises(
+            ValueError,
+            match="Cash reduction cannot be absorbed by 'Account Adjustment'",
+        ):
+            account_service.adjust_account_balance(
+                session,
+                account_name="Cash",
+                target_balance=bal_before - Decimal("50.00"),
+                envelope_name="Account Adjustment",
+            )
+
+    def test_adjust_credit_card_debt_increase(self, session):
+        account_service.create_account(
+            session,
+            AccountBase(
+                name="AdjustCardA",
+                account_type=AccountType.CREDIT_CARD,
+                current_balance=Decimal("400.00"),
+            ),
+        )
+        assert (
+            account_service.get_account_balance(session, "AdjustCardA")
+            == Decimal("400.00")
+        )
+
+        # Debt increases from $400 to $460 (more debt owed)
+        tx = account_service.adjust_account_balance(
+            session,
+            account_name="AdjustCardA",
+            target_balance=Decimal("460.00"),
+        )
+
+        assert tx is not None
+        assert tx.transaction_type == TransactionType.INTEREST_CHARGE
+        assert tx.account.name == "AdjustCardA"
+        assert len(tx.splits) == 1
+        assert tx.splits[0].envelope.name == "Account Adjustment"
+        assert tx.splits[0].amount == Decimal("60.00")
+
+        assert (
+            account_service.get_account_balance(session, "AdjustCardA")
+            == Decimal("460.00")
+        )
+
+    def test_adjust_credit_card_debt_decrease(self, session):
+        account_service.create_account(
+            session,
+            AccountBase(
+                name="AdjustCardB",
+                account_type=AccountType.CREDIT_CARD,
+                current_balance=Decimal("500.00"),
+            ),
+        )
+        assert (
+            account_service.get_account_balance(session, "AdjustCardB")
+            == Decimal("500.00")
+        )
+
+        # Debt decreases from $500 to $420 (less debt owed)
+        tx = account_service.adjust_account_balance(
+            session,
+            account_name="AdjustCardB",
+            target_balance=Decimal("420.00"),
+        )
+
+        assert tx is not None
+        assert tx.transaction_type == TransactionType.INCOME
+        assert tx.account.name == "AdjustCardB"
+        assert len(tx.splits) == 1
+        assert tx.splits[0].envelope.name == "Account Adjustment"
+        assert tx.splits[0].amount == Decimal("80.00")
+
+        assert (
+            account_service.get_account_balance(session, "AdjustCardB")
+            == Decimal("420.00")
+        )
+
+    def test_adjust_loan_debt_adjustments(self, session):
+        account_service.create_account(
+            session,
+            AccountBase(
+                name="StudentLoanA",
+                account_type=AccountType.LOAN,
+                current_balance=Decimal("8000.00"),
+            ),
+        )
+
+        # Debt increases to $8100
+        tx_up = account_service.adjust_account_balance(
+            session,
+            account_name="StudentLoanA",
+            target_balance=Decimal("8100.00"),
+        )
+        assert tx_up is not None
+        assert tx_up.transaction_type == TransactionType.INTEREST_CHARGE
+        assert (
+            account_service.get_account_balance(session, "StudentLoanA")
+            == Decimal("8100.00")
+        )
+
+        # Debt decreases to $7900
+        tx_down = account_service.adjust_account_balance(
+            session,
+            account_name="StudentLoanA",
+            target_balance=Decimal("7900.00"),
+        )
+        assert tx_down is not None
+        assert tx_down.transaction_type == TransactionType.INCOME
+        assert (
+            account_service.get_account_balance(session, "StudentLoanA")
+            == Decimal("7900.00")
+        )
+
+    def test_adjust_balance_identical_returns_none(self, session):
+        account_service.create_account(
+            session,
+            AccountBase(
+                name="SyncCard",
+                account_type=AccountType.CREDIT_CARD,
+                current_balance=Decimal("250.00"),
+            ),
+        )
+
+        result = account_service.adjust_account_balance(
+            session, account_name="SyncCard", target_balance=Decimal("250.00")
+        )
+        assert result is None
+        assert (
+            account_service.get_account_balance(session, "SyncCard")
+            == Decimal("250.00")
+        )
+
+    def test_adjust_balance_inactive_account_raises_error(self, session):
+        account_service.create_account(
+            session,
+            AccountBase(
+                name="InactiveAdjust", account_type=AccountType.CREDIT_CARD
+            ),
+        )
+        account_service.delete_account(session, "InactiveAdjust")
+
+        with pytest.raises(ValueError, match="inactive|archived"):
+            account_service.adjust_account_balance(
+                session,
+                account_name="InactiveAdjust",
+                target_balance=Decimal("100.00"),
+            )
+
+    def test_adjust_balance_nonexistent_account_raises_error(self, session):
+        with pytest.raises(ValueError, match="does not exist"):
+            account_service.adjust_account_balance(
+                session,
+                account_name="FakeAccount",
+                target_balance=Decimal("100.00"),
+            )

@@ -2,7 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
-from typing import List
+from typing import List, Optional
 
 from sqlmodel import Session
 
@@ -513,5 +513,143 @@ def make_payment(session: Session, target: str, amount: Decimal) -> List[Transac
     session.refresh(tx_bal)
     session.refresh(tx_pay)
     return [tx_pay, tx_bal]
+
+
+def adjust_account_balance(
+    session: Session,
+    account_name: str,
+    target_balance: Decimal,
+    note: Optional[str] = None,
+    envelope_name: Optional[str] = None,
+) -> Transaction | None:
+    """Adjusts an account's derived balance to match a real-world target balance.
+
+    Reconciles discrepancy by logging a compensating adjustment transaction.
+    For Cash accounts:
+        - If target > current (surplus): logs INCOME crediting 'Unassigned'.
+        - If target < current (deficit): logs EXPENSE deducting from a required
+          user envelope (cannot be 'Account Adjustment').
+    For Debt accounts (Credit Card, Loan):
+        - If target > current (debt increased): logs INTEREST_CHARGE in
+          'Account Adjustment'.
+        - If target < current (debt decreased): logs INCOME in 'Account Adjustment'.
+
+    Args:
+        session: Active SQLModel database session.
+        account_name: Name of the account to adjust.
+        target_balance: The desired real-world balance to reconcile to.
+        note: Optional custom note for the transaction.
+        envelope_name: Envelope to deduct cash from if cash is reduced.
+            Required if cash decreases.
+
+    Returns:
+        The created adjustment Transaction, or None if balances already match.
+
+    Raises:
+        ValueError: If account does not exist, is inactive, or if a cash
+            reduction does not provide a valid non-'Account Adjustment' envelope.
+    """
+    if not account_name or not account_name.strip():
+        raise ValueError("Account name cannot be empty")
+
+    name = account_name.strip()
+    account = account_repo.get_account_by_name(session, name)
+    if not account:
+        raise ValueError(f"Account '{name}' does not exist")
+
+    if not account.is_active:
+        raise ValueError(
+            f"Cannot adjust balance for inactive/archived account '{name}'"
+        )
+
+    current_balance = account_repo.get_balance_for_account(session, account)
+    delta = target_balance - current_balance
+
+    if delta == Decimal("0.00"):
+        return None
+
+    if account.account_type == AccountType.CASH:
+        if delta > Decimal("0.00"):
+            # Cash surplus: Found money, credit to Unassigned
+            envelope_repo.get_or_create_envelope(
+                session, EnvelopeBase(name="Unassigned")
+            )
+            split = EnvelopeSplitRequest(
+                amount=delta,
+                envelope_name="Unassigned",
+            )
+            tx_req = TransactionRequest(
+                merchant="Balance Adjustment",
+                note=note or f"Balance adjustment: +{delta}",
+                payment_method_name=account.name,
+                transaction_type=TransactionType.INCOME,
+                splits=[split],
+            )
+        else:
+            # Cash deficit: Deducting cash MUST come from a user-specified envelope
+            if not envelope_name or not envelope_name.strip():
+                raise ValueError(
+                    "Cash reduction must specify an envelope to deduct funds from"
+                )
+            env_name = envelope_name.strip()
+            if env_name == "Account Adjustment":
+                raise ValueError(
+                    "Cash reduction cannot be absorbed by 'Account Adjustment'. "
+                    "It must be deducted from a budgeting envelope."
+                )
+            target_env = envelope_repo.get_envelope_by_name(session, env_name)
+            if not target_env:
+                raise ValueError(f"Envelope '{env_name}' does not exist")
+            if not target_env.is_active:
+                raise ValueError(f"Envelope '{env_name}' is inactive/archived")
+
+            split = EnvelopeSplitRequest(
+                amount=-abs(delta),
+                envelope_name=env_name,
+            )
+            tx_req = TransactionRequest(
+                merchant="Balance Adjustment",
+                note=note or f"Balance adjustment: -{abs(delta)}",
+                payment_method_name=account.name,
+                transaction_type=TransactionType.EXPENSE,
+                splits=[split],
+            )
+    else:
+        # Debt account: CREDIT_CARD or LOAN
+        envelope_repo.get_or_create_envelope(
+            session, EnvelopeBase(name="Account Adjustment")
+        )
+        if delta > Decimal("0.00"):
+            # Debt increased: You owe more
+            split = EnvelopeSplitRequest(
+                amount=delta,
+                envelope_name="Account Adjustment",
+            )
+            tx_req = TransactionRequest(
+                merchant="Balance Adjustment",
+                note=note or f"Balance adjustment: +{delta} debt",
+                payment_method_name=account.name,
+                transaction_type=TransactionType.INTEREST_CHARGE,
+                splits=[split],
+            )
+        else:
+            # Debt decreased: You owe less
+            split = EnvelopeSplitRequest(
+                amount=abs(delta),
+                envelope_name="Account Adjustment",
+            )
+            tx_req = TransactionRequest(
+                merchant="Balance Adjustment",
+                note=note or f"Balance adjustment: -{abs(delta)} debt",
+                payment_method_name=account.name,
+                transaction_type=TransactionType.INCOME,
+                splits=[split],
+            )
+
+    tx = transaction_repo.create_transaction(session, tx_req)
+    session.commit()
+    session.refresh(tx)
+    return tx
+
 
 archive_account = delete_account

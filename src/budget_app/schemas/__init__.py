@@ -7,6 +7,7 @@ from budget_app.schemas.account import (
     AccountType,
     AccountUpdate,
     AccountWithBalance,
+    BalanceAdjustmentRequest,
     InterestChargeRequest,
     InterestEarnedRequest,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "AccountWithBalance",
     "AccountResponse",
     "AccountUpdate",
+    "BalanceAdjustmentRequest",
     "InterestChargeRequest",
     "InterestEarnedRequest",
     "EnvelopeBase",

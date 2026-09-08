@@ -120,3 +120,18 @@ class InterestEarnedRequest(SQLModel):
     amount: Decimal = Field(description="Interest earned amount (must be positive)")
     note: Optional[str] = Field(default="Interest Earned", description="Optional note")
     logged_date: Optional[date] = Field(default_factory=date.today, description="Transaction date")
+
+
+class BalanceAdjustmentRequest(SQLModel):
+    """Request payload for adjusting an account balance to match real life."""
+
+    account_name: str = Field(description="Name of the account to adjust")
+    target_balance: Decimal = Field(description="Target real-world balance to reconcile to")
+    note: Optional[str] = Field(default=None, description="Optional note for the adjustment")
+    envelope_name: Optional[str] = Field(
+        default=None,
+        description="Envelope to deduct cash from if cash is reduced; required for cash reductions",
+    )
+    logged_date: Optional[date] = Field(
+        default_factory=date.today, description="Transaction date"
+    )
