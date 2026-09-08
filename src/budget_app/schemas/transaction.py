@@ -47,7 +47,15 @@ class TransactionRequest(TransactionBase):
 
     payment_method_name: str = Field(description="Name of the paying or receiving Account")
     transaction_type: TransactionType = Field(description="Type classification of this transaction")
-    splits: List[EnvelopeSplitRequest] = Field(description="Envelope allocations and amounts")
+    splits: List[EnvelopeSplitRequest] = Field(
+        default_factory=list, description="Envelope allocations and amounts"
+    )
+    ledger_entries: Optional[List[EnvelopeSplitRequest]] = Field(
+        default=None, description="Backward-compatible alias for splits"
+    )
+    entries: Optional[List[EnvelopeSplitRequest]] = Field(
+        default=None, description="Backward-compatible alias for splits"
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -58,17 +66,11 @@ class TransactionRequest(TransactionBase):
                     data["splits"] = data["ledger_entries"]
                 elif "entries" in data:
                     data["splits"] = data["entries"]
+            if "ledger_entries" not in data and "splits" in data:
+                data["ledger_entries"] = data["splits"]
+            if "entries" not in data and "splits" in data:
+                data["entries"] = data["splits"]
         return data
-
-    @property
-    def ledger_entries(self) -> List[EnvelopeSplitRequest]:
-        """Backward-compatible alias for splits."""
-        return self.splits
-
-    @property
-    def entries(self) -> List[EnvelopeSplitRequest]:
-        """Backward-compatible alias for splits."""
-        return self.splits
 
 
 class FinancedTransaction(TransactionBase):
@@ -164,6 +166,12 @@ class TransactionUpdateRequest(SQLModel):
     splits: Optional[List[EnvelopeSplitRequest]] = Field(
         default=None, description="Updated envelope allocations and amounts"
     )
+    ledger_entries: Optional[List[EnvelopeSplitRequest]] = Field(
+        default=None, description="Backward-compatible alias for splits"
+    )
+    entries: Optional[List[EnvelopeSplitRequest]] = Field(
+        default=None, description="Backward-compatible alias for splits"
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -174,17 +182,11 @@ class TransactionUpdateRequest(SQLModel):
                     data["splits"] = data["ledger_entries"]
                 elif "entries" in data:
                     data["splits"] = data["entries"]
+            if "ledger_entries" not in data and "splits" in data:
+                data["ledger_entries"] = data["splits"]
+            if "entries" not in data and "splits" in data:
+                data["entries"] = data["splits"]
         return data
-
-    @property
-    def ledger_entries(self) -> Optional[List[EnvelopeSplitRequest]]:
-        """Backward-compatible alias for splits."""
-        return self.splits
-
-    @property
-    def entries(self) -> Optional[List[EnvelopeSplitRequest]]:
-        """Backward-compatible alias for splits."""
-        return self.splits
 
 
 

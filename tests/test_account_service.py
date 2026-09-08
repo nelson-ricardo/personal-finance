@@ -3,6 +3,7 @@ import pytest
 from budget_app.repositories import envelope_repo
 from budget_app.schemas import (
     AccountBase,
+    AccountCreate,
     AccountType,
     AccountUpdate,
     EnvelopeBase,
@@ -15,7 +16,7 @@ from budget_app.services import account_service, envelope_service, transaction_s
 
 class TestCreateAccount:
     def test_create_account_success(self, session):
-        acc_info = AccountBase(
+        acc_info = AccountCreate(
             name="Savings",
             account_type=AccountType.CASH,
             current_balance=Decimal("500"),
@@ -51,7 +52,7 @@ class TestCreateAccount:
             account_service.create_account(session, duplicate)
 
     def test_create_cash_account_negative_balance_raises_error(self, session):
-        acc_info = AccountBase(
+        acc_info = AccountCreate(
             name="CashNegative",
             account_type=AccountType.CASH,
             current_balance=Decimal("-100"),
@@ -60,7 +61,7 @@ class TestCreateAccount:
             account_service.create_account(session, acc_info)
 
     def test_create_cash_account_clears_credit_fields(self, session):
-        acc_info = AccountBase(
+        acc_info = AccountCreate(
             name="CashWithCreditFields",
             account_type=AccountType.CASH,
             current_balance=Decimal("200"),
@@ -72,7 +73,7 @@ class TestCreateAccount:
         assert account.monthly_payment is None
 
     def test_create_credit_card_auto_links_envelope(self, session):
-        acc_info = AccountBase(
+        acc_info = AccountCreate(
             name="Visa Rewards",
             account_type=AccountType.CREDIT_CARD,
             current_balance=Decimal("0"),
@@ -84,7 +85,7 @@ class TestCreateAccount:
         assert account.envelope.name == "Credit Card Payment"
 
     def test_create_credit_card_negative_balance_raises_error(self, session):
-        acc_info = AccountBase(
+        acc_info = AccountCreate(
             name="BadCard",
             account_type=AccountType.CREDIT_CARD,
             current_balance=Decimal("-50"),
@@ -97,7 +98,7 @@ class TestStartingBalanceAndDerivedBalance:
     def test_cash_starting_balance_creates_income_transaction(self, session):
         acc = account_service.create_account(
             session,
-            AccountBase(name="Chase Checking", account_type=AccountType.CASH, current_balance=Decimal("1500")),
+            AccountCreate(name="Chase Checking", account_type=AccountType.CASH, current_balance=Decimal("1500")),
         )
         assert acc.current_balance == Decimal("1500")
         assert account_service.get_account_balance(session, "Chase Checking") == Decimal("1500")
@@ -110,7 +111,7 @@ class TestStartingBalanceAndDerivedBalance:
     def test_debt_starting_balance_creates_adjustment_transaction(self, session):
         acc = account_service.create_account(
             session,
-            AccountBase(name="Auto Loan", account_type=AccountType.LOAN, current_balance=Decimal("12000")),
+            AccountCreate(name="Auto Loan", account_type=AccountType.LOAN, current_balance=Decimal("12000")),
         )
         assert acc.current_balance == Decimal("12000")
         assert account_service.get_account_balance(session, "Auto Loan") == Decimal("12000")
@@ -123,11 +124,11 @@ class TestStartingBalanceAndDerivedBalance:
     def test_get_all_accounts_returns_derived_balances(self, session):
         account_service.create_account(
             session,
-            AccountBase(name="Bank A", account_type=AccountType.CASH, current_balance=Decimal("300")),
+            AccountCreate(name="Bank A", account_type=AccountType.CASH, current_balance=Decimal("300")),
         )
         account_service.create_account(
             session,
-            AccountBase(name="Card B", account_type=AccountType.CREDIT_CARD, current_balance=Decimal("200")),
+            AccountCreate(name="Card B", account_type=AccountType.CREDIT_CARD, current_balance=Decimal("200")),
         )
         all_accs = account_service.get_all_accounts(session)
         acc_dict = {a.name: a.current_balance for a in all_accs}
@@ -139,7 +140,7 @@ class TestInterestAdjustments:
     def test_add_interest_charge_credit_card(self, session):
         card = account_service.create_account(
             session,
-            AccountBase(name="Discover", account_type=AccountType.CREDIT_CARD, current_balance=Decimal("500")),
+            AccountCreate(name="Discover", account_type=AccountType.CREDIT_CARD, current_balance=Decimal("500")),
         )
         assert card.current_balance == Decimal("500")
 
@@ -149,6 +150,7 @@ class TestInterestAdjustments:
         assert tx is not None
         assert tx.transaction_type == "INTEREST_CHARGE"
         assert len(tx.splits) == 1
+        assert tx.splits[0].envelope is not None
         assert tx.splits[0].envelope.name == "Account Adjustment"
 
         # Derived debt balance should have increased by $15.50
@@ -176,11 +178,12 @@ class TestInterestAdjustments:
     def test_add_interest_earned_cash(self, session):
         savings = account_service.create_account(
             session,
-            AccountBase(name="High Yield Savings", account_type=AccountType.CASH, current_balance=Decimal("1000")),
+            AccountCreate(name="High Yield Savings", account_type=AccountType.CASH, current_balance=Decimal("1000")),
         )
         assert savings.current_balance == Decimal("1000")
 
         unassigned = envelope_repo.get_envelope_by_name(session, "Unassigned")
+        assert unassigned is not None
         unassigned_bal_before = envelope_repo.get_balance_for_envelope(session, unassigned)
 
         tx = account_service.add_interest_earned(
@@ -189,6 +192,7 @@ class TestInterestAdjustments:
         assert tx is not None
         assert tx.transaction_type == "INTEREST_EARNED"
         assert len(tx.splits) == 1
+        assert tx.splits[0].envelope is not None
         assert tx.splits[0].envelope.name == "Unassigned"
 
         # Derived cash balance should increase by $4.25
@@ -238,7 +242,7 @@ class TestAccountLifecycleAndFiltering:
     def test_delete_account_with_starting_balance_success(self, session):
         account_service.create_account(
             session,
-            AccountBase(
+            AccountCreate(
                 name="InitialDebt",
                 account_type=AccountType.CREDIT_CARD,
                 current_balance=Decimal("250.00"),
@@ -367,7 +371,7 @@ class TestMakePayment:
         # 2. Setup Credit Card with $500 debt
         account_service.create_account(
             session,
-            AccountBase(
+            AccountCreate(
                 name="ChaseSapphire",
                 account_type=AccountType.CREDIT_CARD,
                 current_balance=Decimal("500.00"),
@@ -388,16 +392,20 @@ class TestMakePayment:
         tx_pay, tx_bal = txs
 
         # Cash outflow transaction
+        assert tx_pay.account is not None
         assert tx_pay.account.name == "Cash"
         assert tx_pay.transaction_type == TransactionType.EXPENSE
         assert len(tx_pay.splits) == 1
+        assert tx_pay.splits[0].envelope is not None
         assert tx_pay.splits[0].envelope.name == "Credit Card Payment"
         assert tx_pay.splits[0].amount == Decimal("-200.00")
 
         # Card debt reduction transaction
+        assert tx_bal.account is not None
         assert tx_bal.account.name == "ChaseSapphire"
         assert tx_bal.transaction_type == TransactionType.INCOME
         assert len(tx_bal.splits) == 1
+        assert tx_bal.splits[0].envelope is not None
         assert tx_bal.splits[0].envelope.name == "Account Adjustment"
         assert tx_bal.splits[0].amount == Decimal("200.00")
 
@@ -416,6 +424,7 @@ class TestMakePayment:
         cc_env = envelope_repo.get_envelope_by_name(
             session, "Credit Card Payment"
         )
+        assert cc_env is not None
         assert (
             envelope_repo.get_balance_for_envelope(session, cc_env)
             == Decimal("0.00")
@@ -429,7 +438,7 @@ class TestMakePayment:
         # 2. Setup Loan (auto-creates a "CarLoan" envelope) with $10,000 debt
         account_service.create_account(
             session,
-            AccountBase(
+            AccountCreate(
                 name="CarLoan",
                 account_type=AccountType.LOAN,
                 current_balance=Decimal("10000.00"),
@@ -441,6 +450,7 @@ class TestMakePayment:
             session, destination="CarLoan", amount=Decimal("450.00")
         )
         car_env = envelope_repo.get_envelope_by_name(session, "CarLoan")
+        assert car_env is not None
         assert (
             envelope_repo.get_balance_for_envelope(session, car_env)
             == Decimal("450.00")
@@ -522,6 +532,7 @@ class TestAdjustAccountBalance:
     def test_adjust_cash_balance_increase(self, session):
         bal_before = account_service.get_account_balance(session, "Cash")
         unassigned = envelope_repo.get_envelope_by_name(session, "Unassigned")
+        assert unassigned is not None
         unassigned_bal_before = envelope_repo.get_balance_for_envelope(
             session, unassigned
         )
@@ -533,8 +544,10 @@ class TestAdjustAccountBalance:
 
         assert tx is not None
         assert tx.transaction_type == TransactionType.INCOME
+        assert tx.account is not None
         assert tx.account.name == "Cash"
         assert len(tx.splits) == 1
+        assert tx.splits[0].envelope is not None
         assert tx.splits[0].envelope.name == "Unassigned"
         assert tx.splits[0].amount == Decimal("150.00")
 
@@ -554,6 +567,7 @@ class TestAdjustAccountBalance:
             session, destination="Miscellaneous", amount=Decimal("200.00")
         )
         misc_env = envelope_repo.get_envelope_by_name(session, "Miscellaneous")
+        assert misc_env is not None
         assert (
             envelope_repo.get_balance_for_envelope(session, misc_env)
             == Decimal("200.00")
@@ -571,8 +585,10 @@ class TestAdjustAccountBalance:
 
         assert tx is not None
         assert tx.transaction_type == TransactionType.EXPENSE
+        assert tx.account is not None
         assert tx.account.name == "Cash"
         assert len(tx.splits) == 1
+        assert tx.splits[0].envelope is not None
         assert tx.splits[0].envelope.name == "Miscellaneous"
         assert tx.splits[0].amount == Decimal("-75.00")
 
@@ -614,7 +630,7 @@ class TestAdjustAccountBalance:
     def test_adjust_credit_card_debt_increase(self, session):
         account_service.create_account(
             session,
-            AccountBase(
+            AccountCreate(
                 name="AdjustCardA",
                 account_type=AccountType.CREDIT_CARD,
                 current_balance=Decimal("400.00"),
@@ -634,8 +650,10 @@ class TestAdjustAccountBalance:
 
         assert tx is not None
         assert tx.transaction_type == TransactionType.INTEREST_CHARGE
+        assert tx.account is not None
         assert tx.account.name == "AdjustCardA"
         assert len(tx.splits) == 1
+        assert tx.splits[0].envelope is not None
         assert tx.splits[0].envelope.name == "Account Adjustment"
         assert tx.splits[0].amount == Decimal("60.00")
 
@@ -647,7 +665,7 @@ class TestAdjustAccountBalance:
     def test_adjust_credit_card_debt_decrease(self, session):
         account_service.create_account(
             session,
-            AccountBase(
+            AccountCreate(
                 name="AdjustCardB",
                 account_type=AccountType.CREDIT_CARD,
                 current_balance=Decimal("500.00"),
@@ -667,8 +685,10 @@ class TestAdjustAccountBalance:
 
         assert tx is not None
         assert tx.transaction_type == TransactionType.INCOME
+        assert tx.account is not None
         assert tx.account.name == "AdjustCardB"
         assert len(tx.splits) == 1
+        assert tx.splits[0].envelope is not None
         assert tx.splits[0].envelope.name == "Account Adjustment"
         assert tx.splits[0].amount == Decimal("80.00")
 
@@ -680,7 +700,7 @@ class TestAdjustAccountBalance:
     def test_adjust_loan_debt_adjustments(self, session):
         account_service.create_account(
             session,
-            AccountBase(
+            AccountCreate(
                 name="StudentLoanA",
                 account_type=AccountType.LOAN,
                 current_balance=Decimal("8000.00"),
@@ -716,7 +736,7 @@ class TestAdjustAccountBalance:
     def test_adjust_balance_identical_returns_none(self, session):
         account_service.create_account(
             session,
-            AccountBase(
+            AccountCreate(
                 name="SyncCard",
                 account_type=AccountType.CREDIT_CARD,
                 current_balance=Decimal("250.00"),

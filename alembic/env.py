@@ -12,7 +12,7 @@ from sqlalchemy import pool
 from alembic import context
 
 from sqlmodel import SQLModel
-from budget_app.models import Account, Transaction, Ledger, Envelope
+from budget_app.models import Account, Envelope, EnvelopeCategory, Ledger, Transaction
 
 load_dotenv()
 

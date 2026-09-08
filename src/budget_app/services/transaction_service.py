@@ -15,6 +15,7 @@ from sqlmodel import Session
 from budget_app.models import Account, EnvelopeSplit, Ledger, Transaction
 from budget_app.repositories import (
     account_repo,
+    category_repo,
     envelope_repo,
     envelope_split_repo,
     ledger_repo,
@@ -140,10 +141,18 @@ def add_financed_transaction(session: Session, transaction: FinancedTransaction)
     else:
         envelope_name = f"{transaction.merchant.strip()} - {transaction.term}"
 
-    envelope_used = envelope_repo.get_or_create_envelope(session, EnvelopeBase(
-        name=envelope_name,
-        note=f"{monthly_payment}/mo."
-    ))
+    fixed_cat = category_repo.get_category_by_name(session, "Fixed Monthly Expenses")
+    cat_id = fixed_cat.id if fixed_cat else None
+    envelope_used = envelope_repo.get_or_create_envelope(
+        session,
+        EnvelopeBase(
+            name=envelope_name,
+            note=f"{monthly_payment}/mo.",
+        ),
+        category_id=cat_id,
+    )
+    if cat_id is not None and envelope_used.category_id is None:
+        envelope_used.category_id = cat_id
 
     # make the transaction
     positive_entry = EnvelopeSplitRequest(

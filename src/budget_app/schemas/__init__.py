@@ -11,7 +11,14 @@ from budget_app.schemas.account import (
     InterestChargeRequest,
     InterestEarnedRequest,
 )
-from budget_app.schemas.envelope import(
+from budget_app.schemas.category import (
+    EnvelopeCategoryBase,
+    EnvelopeCategoryCreate,
+    EnvelopeCategoryResponse,
+    EnvelopeCategoryUpdate,
+    EnvelopeCategoryWithEnvelopes,
+)
+from budget_app.schemas.envelope import (
     EnvelopeBase, 
     EnvelopeTransfer, 
     EnvelopeWithBalance,
@@ -44,6 +51,11 @@ __all__ = [
     "BalanceAdjustmentRequest",
     "InterestChargeRequest",
     "InterestEarnedRequest",
+    "EnvelopeCategoryBase",
+    "EnvelopeCategoryCreate",
+    "EnvelopeCategoryUpdate",
+    "EnvelopeCategoryResponse",
+    "EnvelopeCategoryWithEnvelopes",
     "EnvelopeBase",
     "EnvelopeTransfer",
     "EnvelopeSplitBase",

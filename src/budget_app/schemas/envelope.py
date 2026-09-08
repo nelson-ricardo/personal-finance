@@ -34,17 +34,22 @@ class EnvelopeTransfer(SQLModel):
     transfer_transaction: Transaction
 
 class EnvelopeWithBalance(EnvelopeBase):
-    """Envelope Base with its database ID and balance."""
+    """Envelope Base with its database ID, category information, and balance."""
 
     id: Optional[int] = Field(default=None, description="Primary key ID of the envelope")
+    category_id: Optional[int] = Field(default=None, description="Primary key ID of the category group")
+    category_name: Optional[str] = Field(default=None, description="Name of the category group")
     balance: Decimal = Field(description="Current net balance of the envelope")
 
 
 class EnvelopeUpdate(SQLModel):
-    """Payload for updating an envelope's name or note."""
+    """Payload for updating an envelope's name, note, or category."""
 
     name: Optional[str] = Field(default=None, description="Updated unique display name")
     note: Optional[str] = Field(default=None, description="Updated note or goal description")
+    category_name: Optional[str] = Field(
+        default=None, description="Updated category name (or empty string to unassign)"
+    )
 
 class Config:
     arbitrary_types_allows = True

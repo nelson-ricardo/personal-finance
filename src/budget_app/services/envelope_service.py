@@ -13,7 +13,12 @@ from typing import List
 from sqlmodel import Session
 
 from budget_app.models import Account, Envelope, Transaction
-from budget_app.repositories import account_repo, envelope_repo, transaction_repo
+from budget_app.repositories import (
+    account_repo,
+    category_repo,
+    envelope_repo,
+    transaction_repo,
+)
 from budget_app.schemas import (
     EnvelopeBase,
     EnvelopeSplitRequest,
@@ -31,27 +36,39 @@ SYSTEM_ENVELOPES: frozenset[str] = frozenset(
 
 
 def create_envelope(
-
-    session: Session, envelope_info: EnvelopeBase
+    session: Session,
+    envelope_info: EnvelopeBase,
+    category_name: str | None = None,
 ) -> Envelope:
     """Creates a new envelope and persists it in the database.
 
     Args:
         session: Active SQLModel database session.
         envelope_info: Information for the envelope being created (name, note, is_active).
+        category_name: Optional name of the category group to assign this envelope to.
 
     Returns:
         The newly created and refreshed Envelope instance.
 
     Raises:
-        ValueError: If name is empty/whitespace or an envelope with the given name already exists.
+        ValueError: If name is empty/whitespace, an envelope with the given name already exists,
+                    or the specified category_name does not exist.
     """
     if not envelope_info.name or not envelope_info.name.strip():
         raise ValueError("Envelope name cannot be empty")
 
     envelope_info.name = envelope_info.name.strip()
 
-    new_envelope = envelope_repo.create_envelope(session, envelope_info)
+    category_id: int | None = None
+    if category_name is not None and category_name.strip():
+        cat = category_repo.get_category_by_name(session, category_name.strip())
+        if not cat:
+            raise ValueError(f"Category '{category_name}' does not exist")
+        category_id = cat.id
+
+    new_envelope = envelope_repo.create_envelope(
+        session, envelope_info, category_id=category_id
+    )
     session.commit()
     session.refresh(new_envelope)
 
@@ -334,12 +351,15 @@ def get_envelopes_and_balances(
 
     for envelope in envelopes:
         curr_balance = envelope_repo.get_balance_for_envelope(session, envelope)
+        cat_name = envelope.category.name if envelope.category else None
         result.append(
             EnvelopeWithBalance(
                 id=envelope.id,
                 name=envelope.name,
                 note=envelope.note,
                 is_active=envelope.is_active,
+                category_id=envelope.category_id,
+                category_name=cat_name,
                 balance=curr_balance,
             )
         )
@@ -382,12 +402,15 @@ def get_single_envelope_w_balance(
         raise ValueError(f"envelope '{envelope_name}' does not exist")
 
     curr_balance = envelope_repo.get_balance_for_envelope(session, target_envelope)
+    cat_name = target_envelope.category.name if target_envelope.category else None
 
     return EnvelopeWithBalance(
         id=target_envelope.id,
         name=target_envelope.name,
         note=target_envelope.note,
         is_active=target_envelope.is_active,
+        category_id=target_envelope.category_id,
+        category_name=cat_name,
         balance=curr_balance,
     )
 
@@ -489,6 +512,17 @@ def update_envelope_info(
     if envelope_info.note is not None:
         note_val = envelope_info.note.strip()
         target_envelope.note = note_val if note_val else None
+
+    # If updating category
+    if envelope_info.category_name is not None:
+        cat_str = envelope_info.category_name.strip()
+        if not cat_str:
+            target_envelope.category_id = None
+        else:
+            cat = category_repo.get_category_by_name(session, cat_str)
+            if not cat:
+                raise ValueError(f"Category '{cat_str}' does not exist")
+            target_envelope.category_id = cat.id
 
     session.add(target_envelope)
     session.commit()

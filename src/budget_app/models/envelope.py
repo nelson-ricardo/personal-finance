@@ -8,6 +8,7 @@ from budget_app.schemas import EnvelopeBase
 
 if TYPE_CHECKING:
     from budget_app.models.account import Account
+    from budget_app.models.category import EnvelopeCategory
     from budget_app.models.envelope_split import EnvelopeSplit
 
 
@@ -19,6 +20,10 @@ class Envelope(EnvelopeBase, table=True):
     """
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    category_id: Optional[int] = Field(default=None, foreign_key="envelope_category.id")
+
+    # Category group relationship
+    category: Optional["EnvelopeCategory"] = Relationship(back_populates="envelopes")
 
     # Reverse link for credit card payment envelope association
     account: "Account" = Relationship(

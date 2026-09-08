@@ -1872,6 +1872,7 @@ class TestEnvelopeSplitUbiquitousLanguage:
         assert updated.merchant == "Updated Merchant"
         assert len(updated.splits) == 1
         assert updated.splits[0].amount == Decimal("-80.00")
+        assert updated.splits[0].envelope is not None
         assert updated.splits[0].envelope.name == "Dining"
         assert cash.current_balance == Decimal("420.00")
 
@@ -1897,6 +1898,7 @@ class TestEnvelopeSplitUbiquitousLanguage:
 
     def test_envelope_split_repo_and_envelope_repo_has_splits(self, session):
         env = get_or_create_envelope(session, "Utilities")
+        assert env.id is not None
         get_or_create_account(session, "Cash", AccountType.CASH)
         transaction_repo.create_transaction(
             session,

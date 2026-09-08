@@ -78,6 +78,10 @@ class AccountCreate(AccountBase):
         default=Decimal("0.00"),
         description="Initial starting balance (added to Cash via Unassigned, or debt for Credit/Loan via Account Adjustment)",
     )
+    current_balance: Optional[Decimal] = Field(
+        default=None,
+        description="Alias for starting_balance",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -85,6 +89,8 @@ class AccountCreate(AccountBase):
         if isinstance(data, dict):
             if "current_balance" in data and "starting_balance" not in data:
                 data["starting_balance"] = data["current_balance"]
+            elif "starting_balance" in data and "current_balance" not in data:
+                data["current_balance"] = data["starting_balance"]
         return data
 
 

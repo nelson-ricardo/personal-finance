@@ -312,7 +312,6 @@ class TestDeactivateEnvelope:
         acc = Account(
             name="Store Card",
             account_type=AccountType.CREDIT_CARD,
-            current_balance=Decimal("0"),
             envelope_id=custom_env.id,
         )
         session.add(acc)
@@ -499,7 +498,6 @@ class TestPermaDeleteEnvelope:
         acc = Account(
             name="Target Card",
             account_type=AccountType.CREDIT_CARD,
-            current_balance=Decimal("0"),
             envelope_id=custom_env.id,
         )
         session.add(acc)
@@ -668,4 +666,63 @@ class TestUpdateEnvelopeInfo:
                 session,
                 target_name="Ghost",
                 envelope_info=EnvelopeUpdate(name="NewName"),
+            )
+
+    def test_update_envelope_category(self, session):
+        from budget_app.services import category_service
+        category_service.create_category(session, name="Category A")
+        category_service.create_category(session, name="Category B")
+
+        env = env_service.create_envelope(
+            session, EnvelopeBase(name="CategorizedEnv"), category_name="Category A"
+        )
+        assert env.category_id is not None
+        assert env.category is not None
+        assert env.category.name == "Category A"
+
+        # Update category to Category B
+        updated = env_service.update_envelope_info(
+            session,
+            target_name="CategorizedEnv",
+            envelope_info=EnvelopeUpdate(category_name="Category B"),
+        )
+        assert updated.category is not None
+        assert updated.category.name == "Category B"
+
+        # Unassign category
+        unassigned = env_service.update_envelope_info(
+            session,
+            target_name="CategorizedEnv",
+            envelope_info=EnvelopeUpdate(category_name=""),
+        )
+        assert unassigned.category_id is None
+
+    def test_update_envelope_nonexistent_category_raises(self, session):
+        env_service.create_envelope(session, EnvelopeBase(name="CatTestEnv"))
+        with pytest.raises(ValueError, match="Category 'FakeCat' does not exist"):
+            env_service.update_envelope_info(
+                session,
+                target_name="CatTestEnv",
+                envelope_info=EnvelopeUpdate(category_name="FakeCat"),
+            )
+
+
+class TestEnvelopeCategoryIntegration:
+    def test_create_envelope_with_category(self, session):
+        from budget_app.services import category_service
+        cat = category_service.create_category(session, name="Living Expenses")
+
+        env = env_service.create_envelope(
+            session, EnvelopeBase(name="Water"), category_name="Living Expenses"
+        )
+        assert env.category_id == cat.id
+
+        with_bal = env_service.get_single_envelope_w_balance(session, "Water")
+        assert with_bal.category_id == cat.id
+        assert with_bal.category_name == "Living Expenses"
+
+    def test_create_envelope_with_invalid_category_raises(self, session):
+        with pytest.raises(ValueError, match="Category 'NonExistent' does not exist"):
+            env_service.create_envelope(
+                session, EnvelopeBase(name="Gas"), category_name="NonExistent"
             )

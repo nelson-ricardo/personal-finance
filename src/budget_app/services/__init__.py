@@ -1,7 +1,6 @@
-"""Business logic and domain service layer package."""
-
 from budget_app.services import (
     account_service,
+    category_service,
     envelope_service,
     transaction_service,
 )
@@ -18,6 +17,15 @@ from budget_app.services.account_service import (
     get_all_accounts,
     make_payment,
     update_account,
+)
+from budget_app.services.category_service import (
+    create_category,
+    delete_category,
+    get_categories,
+    get_categories_with_envelopes,
+    get_category_by_id,
+    get_category_by_name,
+    update_category,
 )
 from budget_app.services.envelope_service import (
     activate_envelope,
@@ -54,8 +62,16 @@ from budget_app.services.transaction_service import (
 
 __all__ = [
     "account_service",
+    "category_service",
     "envelope_service",
     "transaction_service",
+    "create_category",
+    "get_category_by_name",
+    "get_category_by_id",
+    "get_categories",
+    "update_category",
+    "delete_category",
+    "get_categories_with_envelopes",
     "create_account",
     "activate_account",
     "archive_account",

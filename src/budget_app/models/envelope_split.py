@@ -1,6 +1,6 @@
 """EnvelopeSplit database table model."""
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlmodel import Field, Relationship
 
@@ -18,7 +18,7 @@ class EnvelopeSplit(EnvelopeSplitBase, table=True):
     amount to specific Envelopes (with signed amounts representing inflows or deductions).
     """
 
-    __tablename__ = "envelope_split"
+    __tablename__: Any = "envelope_split"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     transaction_id: Optional[int] = Field(

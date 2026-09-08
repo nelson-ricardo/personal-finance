@@ -41,12 +41,15 @@ def get_envelope_by_id(session: Session, envelope_id: int) -> Envelope | None:
     return ret_envelope
 
 
-def create_envelope(session: Session, new_envelope: EnvelopeBase) -> Envelope:
+def create_envelope(
+    session: Session, new_envelope: EnvelopeBase, category_id: int | None = None
+) -> Envelope:
     """Strictly creates a new envelope, raising an error if it already exists.
 
     Args:
         session: Active SQLModel database session.
         new_envelope: EnvelopeBase schema containing envelope data.
+        category_id: Optional foreign key ID to EnvelopeCategory.
 
     Returns:
         The newly created Envelope instance staged in the session.
@@ -58,18 +61,23 @@ def create_envelope(session: Session, new_envelope: EnvelopeBase) -> Envelope:
 
     if not test_env:
         ret_envelope: Envelope = Envelope.model_validate(new_envelope)
+        if category_id is not None:
+            ret_envelope.category_id = category_id
         session.add(ret_envelope)
         return ret_envelope
     else:
         raise ValueError("Envelope already exists")
 
 
-def get_or_create_envelope(session: Session, new_envelope: EnvelopeBase) -> Envelope:
+def get_or_create_envelope(
+    session: Session, new_envelope: EnvelopeBase, category_id: int | None = None
+) -> Envelope:
     """Retrieves an existing envelope by name, or creates and stages a new one if not found.
 
     Args:
         session: Active SQLModel database session.
         new_envelope: EnvelopeBase schema with name and attributes.
+        category_id: Optional foreign key ID to EnvelopeCategory.
 
     Returns:
         The existing or newly staged Envelope instance.
@@ -77,6 +85,8 @@ def get_or_create_envelope(session: Session, new_envelope: EnvelopeBase) -> Enve
     ret_envelope: Envelope | None = get_envelope_by_name(session, new_envelope.name)
     if not ret_envelope:
         ret_envelope = Envelope.model_validate(new_envelope)
+        if category_id is not None:
+            ret_envelope.category_id = category_id
         session.add(ret_envelope)
 
     return ret_envelope
@@ -119,6 +129,27 @@ def get_envelopes(session: Session, is_active: bool | None = None) -> List[Envel
     if is_active is not None:
         stmt = stmt.where(Envelope.is_active == is_active)
 
+    stmt = stmt.order_by(Envelope.name)
+    results = session.exec(stmt).all()
+    return list(results)
+
+
+def get_envelopes_by_category(
+    session: Session, category_id: int | None, is_active: bool | None = None
+) -> List[Envelope]:
+    """Fetches envelopes belonging to a category (or uncategorized if category_id is None).
+
+    Args:
+        session: Active SQLModel database session.
+        category_id: Integer ID of the category group, or None for uncategorized envelopes.
+        is_active: Optional boolean filter.
+
+    Returns:
+        List of matching Envelope instances ordered by name.
+    """
+    stmt = select(Envelope).where(Envelope.category_id == category_id)
+    if is_active is not None:
+        stmt = stmt.where(Envelope.is_active == is_active)
     stmt = stmt.order_by(Envelope.name)
     results = session.exec(stmt).all()
     return list(results)

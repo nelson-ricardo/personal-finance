@@ -7,9 +7,15 @@ from typing import List, Optional
 from sqlmodel import Session
 
 from budget_app.models import Account, Transaction, Envelope
-from budget_app.repositories import account_repo, envelope_repo, transaction_repo
+from budget_app.repositories import (
+    account_repo,
+    category_repo,
+    envelope_repo,
+    transaction_repo,
+)
 from budget_app.schemas import (
     AccountBase,
+    AccountCreate,
     AccountType,
     AccountUpdate,
     AccountWithBalance,
@@ -21,7 +27,7 @@ from budget_app.schemas import (
 
 
 def create_account(
-    session: Session, acc_info: AccountBase
+    session: Session, acc_info: AccountBase | AccountCreate
 ) -> Account:
     """Creates a new financial account and persists it in the database.
 
@@ -82,15 +88,22 @@ def create_account(
     new_account = account_repo.create_account(session, acc_info)
 
     # 5. Auto-link Credit Card accounts to 'Credit Card Payment' envelope
+    fixed_cat = category_repo.get_category_by_name(session, "Fixed Monthly Expenses")
+    fixed_cat_id = fixed_cat.id if fixed_cat else None
+
     if acc_info.account_type == AccountType.CREDIT_CARD:
         cc_envelope = envelope_repo.get_or_create_envelope(
-            session, EnvelopeBase(name="Credit Card Payment")
+            session, EnvelopeBase(name="Credit Card Payment"), category_id=fixed_cat_id
         )
+        if fixed_cat_id is not None and cc_envelope.category_id is None:
+            cc_envelope.category_id = fixed_cat_id
         new_account.envelope_id = cc_envelope.id
     elif acc_info.account_type == AccountType.LOAN:
         payment_envelope = envelope_repo.get_or_create_envelope(
-            session, EnvelopeBase(name=acc_info.name)
+            session, EnvelopeBase(name=acc_info.name), category_id=fixed_cat_id
         )
+        if fixed_cat_id is not None and payment_envelope.category_id is None:
+            payment_envelope.category_id = fixed_cat_id
         new_account.envelope = payment_envelope
 
     session.commit()

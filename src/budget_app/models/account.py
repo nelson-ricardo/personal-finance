@@ -29,11 +29,13 @@ class Account(AccountBase, table=True):
     @property
     def current_balance(self) -> Decimal:
         """Derived balance accessor computing from transactions or returning cached/in-memory balance."""
+        from typing import cast
         from sqlalchemy.orm import object_session
+        from sqlmodel import Session as SQLModelSession
         sess = object_session(self)
         if sess is not None and self.id is not None:
             from budget_app.repositories import account_repo
-            return account_repo.get_balance_for_account(sess, self)
+            return account_repo.get_balance_for_account(cast(SQLModelSession, sess), self)
         return getattr(self, "_current_balance", Decimal("0.00"))
 
     @current_balance.setter
