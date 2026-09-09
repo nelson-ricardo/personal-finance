@@ -11,7 +11,7 @@ requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.18.5",
     "asyncpg>=0.31.0",
-    "fastapi>=0.141.1",
+    "fastapi[standard]>=0.141.1",
     "psycopg[binary]>=3.3.4",
     "python-dotenv>=1.2.2",
     "sqlmodel>=0.0.39",
@@ -32,6 +32,10 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+filterwarnings = [
+    "ignore::starlette.exceptions.StarletteDeprecationWarning",
+    "ignore::DeprecationWarning:starlette.testclient",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
