@@ -11,9 +11,11 @@ requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.18.5",
     "asyncpg>=0.31.0",
+    "fastapi>=0.141.1",
     "psycopg[binary]>=3.3.4",
     "python-dotenv>=1.2.2",
     "sqlmodel>=0.0.39",
+    "uvicorn>=0.52.4",
 ]
 
 [tool.uv.build-backend]
@@ -22,6 +24,7 @@ packages = ["budget_app"]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.1.1",
     "ruff>=0.16.2",
 ]
