@@ -483,7 +483,10 @@ class TestGetTransactions:
 
         # 5. Envelope transfer on 22nd of system month ($50 from Fun to Utilities)
         # Fund Unassigned first, transfer to Fun so Fun has positive balance
-        envelope_service.add_to_cash(session, Decimal("500"), "Fund Income")
+        fund_tx = envelope_service.add_to_cash(session, Decimal("500"), "Fund Income")
+        fund_tx.logged_date = date(current_year, current_month, 22)
+        session.add(fund_tx)
+        session.commit()
         envelope_service.assign_to_envelope(
             session, destination="Fun", amount=Decimal("200")
         )
