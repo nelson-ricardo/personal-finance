@@ -19,10 +19,14 @@ from budget_app.schemas.category import (
     EnvelopeCategoryWithEnvelopes,
 )
 from budget_app.schemas.envelope import (
-    EnvelopeBase, 
-    EnvelopeTransfer, 
-    EnvelopeWithBalance,
+    CashIncomeRequest,
+    EnvelopeAssignRequest,
+    EnvelopeBase,
+    EnvelopeCreate,
+    EnvelopeTransfer,
+    EnvelopeTransferRequest,
     EnvelopeUpdate,
+    EnvelopeWithBalance,
 )
 from budget_app.schemas.envelope_split import (
     EnvelopeSplitBase,
@@ -57,7 +61,11 @@ __all__ = [
     "EnvelopeCategoryResponse",
     "EnvelopeCategoryWithEnvelopes",
     "EnvelopeBase",
+    "EnvelopeCreate",
     "EnvelopeTransfer",
+    "EnvelopeTransferRequest",
+    "EnvelopeAssignRequest",
+    "CashIncomeRequest",
     "EnvelopeSplitBase",
     "EnvelopeSplitRequest",
     "EnvelopeSplitResponse",

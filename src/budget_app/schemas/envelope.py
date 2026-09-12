@@ -19,6 +19,38 @@ class EnvelopeBase(SQLModel):
     note: Optional[str] = Field(default=None, description="Optional description, goal, or monthly payment note")
     is_active: bool = Field(default=True, description="Flag indicating whether this envelope is active for budgeting")
 
+class EnvelopeCreate(EnvelopeBase):
+    """Payload for creating a new envelope, with an optional initial category assignment."""
+
+    category_name: Optional[str] = Field(
+        default=None, description="Optional name of the category group to assign to"
+    )
+
+
+class EnvelopeTransferRequest(SQLModel):
+    """Payload for transferring funds between two envelopes."""
+
+    source_envelope: str = Field(description="Name of source envelope to withdraw funds from")
+    destination_envelope: str = Field(description="Name of destination envelope to deposit funds into")
+    amount: Decimal = Field(description="Transfer amount (must be positive)")
+    note: Optional[str] = Field(default=None, description="Optional note describing the transfer")
+
+
+class EnvelopeAssignRequest(SQLModel):
+    """Payload for allocating funds from Unassigned to an envelope."""
+
+    envelope_name: str = Field(description="Target envelope name to assign funds to")
+    amount: Decimal = Field(description="Assignment amount (must be positive)")
+    note: Optional[str] = Field(default=None, description="Optional note describing the assignment")
+
+
+class CashIncomeRequest(SQLModel):
+    """Payload for adding cash income directly into Unassigned envelope."""
+
+    amount: Decimal = Field(description="Income amount to add (must be positive)")
+    source: str = Field(description="Source or merchant of the income")
+    note: Optional[str] = Field(default=None, description="Optional note describing the income")
+
 
 class EnvelopeTransfer(SQLModel):
     """Response object returned after executing a transfer between two envelopes.
