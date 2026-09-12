@@ -14,7 +14,9 @@ from budget_app.schemas import (
     TransactionDetailResponse,
     TransactionUpdateRequest,
     FinancedTransactionUpdateRequest,
-    BalanceAdjustmentRequest
+    BalanceAdjustmentRequest,
+    InterestChargeRequest,
+    InterestEarnedRequest,
 )
 from budget_app.models import Transaction
 from budget_app.services import (
@@ -26,7 +28,9 @@ from budget_app.services import (
     update_transaction,
     update_financed_transaction,
     make_payment,
-    adjust_account_balance
+    adjust_account_balance,
+    add_interest_charge,
+    add_interest_earned,
 )
 
 class PaymentRequest(SQLModel):
@@ -228,5 +232,55 @@ def adjust_acct_bal(
             )
 
         return get_transaction_by_id(session, result.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+@router.post("/interest-charge", 
+             response_model=TransactionResponse,
+             status_code=status.HTTP_201_CREATED
+)
+def add_interest_charge_transaction(
+    payload: InterestChargeRequest,
+    session: Session = Depends(get_session)
+):
+    try:
+        master_tx = add_interest_charge(
+            session=session,
+            account_name=payload.account_name,
+            amount=payload.amount,
+            note=payload.note,
+            logged_date=payload.logged_date
+        )
+        if not master_tx.id:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Could not fetch interest charge transaction"
+            )
+        return get_transaction_by_id(session, master_tx.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+@router.post("/interest-earned", 
+             response_model=TransactionResponse,
+             status_code=status.HTTP_201_CREATED
+)
+def add_interest_earned_transaction(
+    payload: InterestEarnedRequest,
+    session: Session = Depends(get_session)
+):
+    try:
+        master_tx = add_interest_earned(
+            session=session,
+            account_name=payload.account_name,
+            amount=payload.amount,
+            note=payload.note,
+            logged_date=payload.logged_date
+        )
+        if not master_tx.id:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Could not fetch interest earned transaction"
+            )
+        return get_transaction_by_id(session, master_tx.id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

@@ -372,3 +372,63 @@ class TestPaymentsAndAdjustmentsRoutes:
         res = client.post("/transactions/account-adjustment", json=payload)
         assert res.status_code == status.HTTP_201_CREATED
         assert res.json() == {"message": "Account balance already matches"}
+
+
+class TestInterestTransactionsRoute:
+    def test_add_interest_charge_on_credit_card(self, client: TestClient, test_setup):
+        payload = {
+            "account_name": "Visa Card",
+            "amount": "14.50",
+            "note": "Monthly APR charge",
+        }
+        response = client.post("/transactions/interest-charge", json=payload)
+        assert response.status_code == status.HTTP_201_CREATED
+
+        data = response.json()
+        assert data["id"] is not None
+        assert data["transaction_type"] == "INTEREST_CHARGE"
+        assert data["payment_method_name"] == "Visa Card"
+        assert Decimal(str(data["total"])) == Decimal("14.50")
+        assert data["note"] == "Monthly APR charge"
+
+    def test_add_interest_charge_on_cash_account_rejected(self, client: TestClient, test_setup):
+        payload = {
+            "account_name": "Cash",
+            "amount": "10.00",
+        }
+        response = client.post("/transactions/interest-charge", json=payload)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "debt accounts" in response.json()["detail"]
+
+    def test_add_interest_charge_negative_amount_rejected(self, client: TestClient, test_setup):
+        payload = {
+            "account_name": "Visa Card",
+            "amount": "-5.00",
+        }
+        response = client.post("/transactions/interest-charge", json=payload)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_add_interest_earned_on_cash_account(self, client: TestClient, test_setup):
+        payload = {
+            "account_name": "Cash",
+            "amount": "22.75",
+            "note": "HYSA dividend",
+        }
+        response = client.post("/transactions/interest-earned", json=payload)
+        assert response.status_code == status.HTTP_201_CREATED
+
+        data = response.json()
+        assert data["id"] is not None
+        assert data["transaction_type"] == "INTEREST_EARNED"
+        assert data["payment_method_name"] == "Cash"
+        assert Decimal(str(data["total"])) == Decimal("22.75")
+        assert data["note"] == "HYSA dividend"
+
+    def test_add_interest_earned_on_credit_card_rejected(self, client: TestClient, test_setup):
+        payload = {
+            "account_name": "Visa Card",
+            "amount": "15.00",
+        }
+        response = client.post("/transactions/interest-earned", json=payload)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Cash/Savings" in response.json()["detail"]
