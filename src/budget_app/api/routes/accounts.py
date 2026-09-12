@@ -58,3 +58,15 @@ def delete_account(
         status_code = status.HTTP_404_NOT_FOUND if "does not exist" in str(e) else status.HTTP_400_BAD_REQUEST
         raise HTTPException(status_code=status_code, detail=str(e))
 
+# reactivate account
+@router.post("/{name}/activate", response_model=AccountResponse, status_code=status.HTTP_200_OK)
+def activate_account(
+    name: str,
+    session: Session = Depends(get_session)
+):
+    try:
+        return account_service.activate_account(session, name)
+    except ValueError as e:
+        status_code = status.HTTP_404_NOT_FOUND if "does not exist" in str(e) else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(status_code=status_code, detail=str(e))
+

@@ -207,3 +207,26 @@ class TestDeleteAccountRoute:
     def test_delete_nonexistent_account_returns_404(self, client: TestClient):
         response = client.delete("/accounts/NonExistentToDelete")
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+class TestActivateAccountRoute:
+    def test_activate_archived_account_success(self, client: TestClient):
+        client.post(
+            "/accounts/",
+            json={"name": "Reactivatable", "account_type": "credit_card", "starting_balance": "0.00"},
+        )
+        # Archive it first
+        res_del = client.delete("/accounts/Reactivatable")
+        assert res_del.status_code == status.HTTP_200_OK
+        assert res_del.json()["is_active"] is False
+
+        # Reactivate it
+        res_act = client.post("/accounts/Reactivatable/activate")
+        assert res_act.status_code == status.HTTP_200_OK
+        data = res_act.json()
+        assert data["name"] == "Reactivatable"
+        assert data["is_active"] is True
+
+    def test_activate_nonexistent_account_returns_404(self, client: TestClient):
+        response = client.post("/accounts/NonExistentToActivate/activate")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
