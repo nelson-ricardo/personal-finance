@@ -26,6 +26,7 @@ from budget_app.schemas import (
     EnvelopeUpdate,
     EnvelopeWithBalance,
     LedgerRequest,
+    SystemEnvelopeType,
     TransactionRequest,
     TransactionType,
 )
@@ -100,7 +101,8 @@ def add_to_cash(
     # fetch the cash account and the unassigned envelope
     cash_account: Account | None = account_repo.get_account_by_name(session, "Cash")
     unassigned_envelope: Envelope | None = (
-        envelope_repo.get_envelope_by_name(session, "Unassigned")
+        envelope_repo.get_envelope_by_system_role(session, SystemEnvelopeType.UNASSIGNED)
+        or envelope_repo.get_envelope_by_name(session, "Unassigned")
     )
 
     # check if we fetched the envelope and cash accounts
@@ -113,7 +115,9 @@ def add_to_cash(
 
     # create the master transaction to add money
     entry: EnvelopeSplitRequest = EnvelopeSplitRequest(
-        amount=amount, envelope_name="Unassigned"
+        amount=amount,
+        envelope_id=unassigned_envelope.id,
+        envelope_name=unassigned_envelope.name,
     )
     master_tx_req: TransactionRequest = TransactionRequest(
         merchant=source,
@@ -243,9 +247,14 @@ def assign_to_envelope(
             amount <= 0, destination envelope does not exist, or Unassigned envelope
             has insufficient funds.
     """
+    unassigned = (
+        envelope_repo.get_envelope_by_system_role(session, SystemEnvelopeType.UNASSIGNED)
+        or envelope_repo.get_envelope_by_name(session, "Unassigned")
+    )
+    unassigned_name = unassigned.name if unassigned else "Unassigned"
     return transfer_between_envelopes(
         session=session,
-        source="Unassigned",
+        source=unassigned_name,
         destination=destination,
         amount=amount,
     )
@@ -278,6 +287,9 @@ def deactivate_envelope(session: Session, envelope_name: str) -> Envelope:
 
     if not target_envelope:
         raise ValueError(f"envelope '{envelope_name}' does not exist")
+
+    if target_envelope.system_role is not None:
+        raise ValueError(f"Cannot deactivate system envelope '{envelope_name}'")
 
     if target_envelope.account is not None:
         raise ValueError(
@@ -436,12 +448,12 @@ def perma_delete_envelope(session: Session, envelope_name: str) -> bool:
 
     envelope_name = envelope_name.strip()
 
-    if envelope_name in SYSTEM_ENVELOPES:
-        raise ValueError(f"Cannot delete system envelope '{envelope_name}'")
-
     target_envelope = envelope_repo.get_envelope_by_name(session, envelope_name)
     if not target_envelope:
         raise ValueError(f"envelope '{envelope_name}' does not exist")
+
+    if target_envelope.system_role is not None or envelope_name in SYSTEM_ENVELOPES:
+        raise ValueError(f"Cannot delete system envelope '{envelope_name}'")
 
     if target_envelope.account is not None:
         raise ValueError(
@@ -468,6 +480,8 @@ def update_envelope_info(
 ) -> Envelope:
     """Updates an envelope's name and/or note.
 
+    System envelopes can be safely renamed and will retain their system role.
+
     Args:
         session: Active SQLModel database session.
         target_name: Current name of the envelope to update.
@@ -477,9 +491,8 @@ def update_envelope_info(
         The updated and refreshed Envelope instance.
 
     Raises:
-        ValueError: If target name is empty, envelope does not exist, attempting
-            to rename a system envelope, new name is invalid/duplicate, or new name
-            is a protected system envelope name.
+        ValueError: If target name is empty, envelope does not exist, or new name
+            is invalid or a duplicate.
     """
     if not target_name or not target_name.strip():
         raise ValueError("update_envelope_info: envelope name cannot be empty")
@@ -495,12 +508,6 @@ def update_envelope_info(
         new_name = envelope_info.name.strip()
         if not new_name:
             raise ValueError("Envelope name cannot be empty")
-
-        if target_name in SYSTEM_ENVELOPES and new_name != target_name:
-            raise ValueError(f"Cannot rename system envelope '{target_name}'")
-
-        if new_name in SYSTEM_ENVELOPES and new_name != target_name:
-            raise ValueError(f"Cannot rename envelope to protected system name '{new_name}'")
 
         if new_name != target_envelope.name:
             existing = envelope_repo.get_envelope_by_name(session, new_name)

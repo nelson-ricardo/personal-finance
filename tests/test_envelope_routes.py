@@ -164,6 +164,21 @@ class TestUpdateEnvelopeRoute:
         response = client.patch("/envelopes/GhostEnv", json={"name": "Whatever"})
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_update_system_envelope_name_success(self, client: TestClient, base_setup):
+        response = client.patch("/envelopes/Unassigned", json={"name": "Ready to Assign"})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["name"] == "Ready to Assign"
+        assert response.json()["system_role"] == "UNASSIGNED"
+
+        # Check old name 404s and new name exists
+        assert client.get("/envelopes/Unassigned").status_code == status.HTTP_404_NOT_FOUND
+        assert client.get("/envelopes/Ready to Assign").status_code == status.HTTP_200_OK
+
+        # Deleting the renamed system envelope via API is still rejected
+        del_res = client.delete("/envelopes/Ready to Assign")
+        assert del_res.status_code == status.HTTP_400_BAD_REQUEST
+        assert "system envelope" in del_res.json()["detail"].lower()
+
 
 class TestEnvelopeLifecycleRoutes:
     def test_deactivate_and_activate_envelope(self, client: TestClient, base_setup):

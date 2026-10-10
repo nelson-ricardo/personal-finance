@@ -22,11 +22,21 @@ def add_envelope_split(
     Raises:
         ValueError: If the envelope specified by envelope_name does not exist.
     """
-    assigned_envelope: Envelope | None = envelope_repo.get_envelope_by_name(
-        session, entry.envelope_name
-    )
-    if not assigned_envelope:
-        raise ValueError(f"Envelope {entry.envelope_name} does not exist")
+    assigned_envelope: Envelope | None = None
+    if entry.envelope_id is not None:
+        assigned_envelope = envelope_repo.get_envelope_by_id(
+            session, entry.envelope_id
+        )
+        if not assigned_envelope:
+            raise ValueError(f"Envelope ID {entry.envelope_id} does not exist")
+    elif entry.envelope_name:
+        assigned_envelope = envelope_repo.get_envelope_by_name(
+            session, entry.envelope_name
+        )
+        if not assigned_envelope:
+            raise ValueError(f"Envelope {entry.envelope_name} does not exist")
+    else:
+        raise ValueError("Envelope split must provide envelope_name or envelope_id")
 
     new_entry = EnvelopeSplit(
         amount=entry.amount,

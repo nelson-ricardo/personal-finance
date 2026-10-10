@@ -15,6 +15,7 @@ from budget_app.schemas import (
     AccountType,
     EnvelopeBase,
     EnvelopeCategoryBase,
+    SystemEnvelopeType,
 )
 from budget_app.services import account_service, envelope_service
 
@@ -46,52 +47,88 @@ def init_db(session: Session) -> None:
     fixed_cat = category_repo.get_category_by_name(session, "Fixed Monthly Expenses")
 
     # 2. Ensure the default 'Unassigned' income envelope exists under 'System'
-    unassigned = envelope_repo.get_envelope_by_name(session, "Unassigned")
+    unassigned = (
+        envelope_repo.get_envelope_by_system_role(session, SystemEnvelopeType.UNASSIGNED)
+        or envelope_repo.get_envelope_by_name(session, "Unassigned")
+    )
     if not unassigned:
         envelope_service.create_envelope(
             session,
-            EnvelopeBase(name="Unassigned", note="default bucket for money coming in"),
+            EnvelopeBase(
+                name="Unassigned",
+                note="default bucket for money coming in",
+                system_role=SystemEnvelopeType.UNASSIGNED,
+            ),
             category_name="System",
         )
         print("Unassigned envelope created.")
-    elif unassigned.category_id is None and system_cat:
-        unassigned.category_id = system_cat.id
-        session.add(unassigned)
-        session.commit()
+    else:
+        updated = False
+        if unassigned.system_role is None:
+            unassigned.system_role = SystemEnvelopeType.UNASSIGNED
+            updated = True
+        if unassigned.category_id is None and system_cat:
+            unassigned.category_id = system_cat.id
+            updated = True
+        if updated:
+            session.add(unassigned)
+            session.commit()
 
     # 3. Ensure the default 'Credit Card Payment' holding envelope exists under 'Fixed Monthly Expenses'
-    cc_envelope = envelope_repo.get_envelope_by_name(session, "Credit Card Payment")
+    cc_envelope = (
+        envelope_repo.get_envelope_by_system_role(session, SystemEnvelopeType.CREDIT_CARD_PAYMENT)
+        or envelope_repo.get_envelope_by_name(session, "Credit Card Payment")
+    )
     if not cc_envelope:
         envelope_service.create_envelope(
             session,
             EnvelopeBase(
                 name="Credit Card Payment",
                 note="holds money allocated to pay off credit card balance",
+                system_role=SystemEnvelopeType.CREDIT_CARD_PAYMENT,
             ),
             category_name="Fixed Monthly Expenses",
         )
         print("Credit card payment envelope created.")
-    elif cc_envelope.category_id is None and fixed_cat:
-        cc_envelope.category_id = fixed_cat.id
-        session.add(cc_envelope)
-        session.commit()
+    else:
+        updated = False
+        if cc_envelope.system_role is None:
+            cc_envelope.system_role = SystemEnvelopeType.CREDIT_CARD_PAYMENT
+            updated = True
+        if cc_envelope.category_id is None and fixed_cat:
+            cc_envelope.category_id = fixed_cat.id
+            updated = True
+        if updated:
+            session.add(cc_envelope)
+            session.commit()
 
     # 4. Ensure the default 'Account Adjustment' system envelope exists under 'System'
-    adj_envelope = envelope_repo.get_envelope_by_name(session, "Account Adjustment")
+    adj_envelope = (
+        envelope_repo.get_envelope_by_system_role(session, SystemEnvelopeType.ACCOUNT_ADJUSTMENT)
+        or envelope_repo.get_envelope_by_name(session, "Account Adjustment")
+    )
     if not adj_envelope:
         envelope_service.create_envelope(
             session,
             EnvelopeBase(
                 name="Account Adjustment",
                 note="system envelope for absorbing account-only balance adjustments",
+                system_role=SystemEnvelopeType.ACCOUNT_ADJUSTMENT,
             ),
             category_name="System",
         )
         print("Account Adjustment envelope created.")
-    elif adj_envelope.category_id is None and system_cat:
-        adj_envelope.category_id = system_cat.id
-        session.add(adj_envelope)
-        session.commit()
+    else:
+        updated = False
+        if adj_envelope.system_role is None:
+            adj_envelope.system_role = SystemEnvelopeType.ACCOUNT_ADJUSTMENT
+            updated = True
+        if adj_envelope.category_id is None and system_cat:
+            adj_envelope.category_id = system_cat.id
+            updated = True
+        if updated:
+            session.add(adj_envelope)
+            session.commit()
 
     # 5. Ensure the primary 'Cash' account exists
     if not account_repo.get_account_by_name(session, "Cash"):

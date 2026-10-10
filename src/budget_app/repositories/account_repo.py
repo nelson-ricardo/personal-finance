@@ -10,6 +10,7 @@ from budget_app.schemas import (
     AccountBase,
     AccountType,
     AccountWithBalance,
+    SystemEnvelopeType,
     TransactionType,
 )
 
@@ -67,7 +68,11 @@ def get_balance_for_account(session: Session, account: Account) -> Decimal:
                 if (
                     is_credit_card
                     and split.envelope is not None
-                    and split.envelope.name == "Credit Card Payment"
+                    and (
+                        split.envelope.system_role == SystemEnvelopeType.CREDIT_CARD_PAYMENT
+                        or (account.envelope_id is not None and split.envelope_id == account.envelope_id)
+                        or split.envelope.name == "Credit Card Payment"
+                    )
                 ):
                     continue
                 tx_total += abs(split.amount)

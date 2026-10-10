@@ -2,9 +2,11 @@
 
 from typing import TYPE_CHECKING, List, Optional
 
+from sqlalchemy import Column
+from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, Relationship
 
-from budget_app.schemas import EnvelopeBase
+from budget_app.schemas import EnvelopeBase, SystemEnvelopeType
 
 if TYPE_CHECKING:
     from budget_app.models.account import Account
@@ -21,6 +23,15 @@ class Envelope(EnvelopeBase, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     category_id: Optional[int] = Field(default=None, foreign_key="envelope_category.id")
+    system_role: Optional[SystemEnvelopeType] = Field(
+        default=None,
+        sa_column=Column(
+            SAEnum(SystemEnvelopeType, name="system_envelope_type_enum"),
+            nullable=True,
+            unique=True,
+            index=True,
+        ),
+    )
 
     # Category group relationship
     category: Optional["EnvelopeCategory"] = Relationship(back_populates="envelopes")

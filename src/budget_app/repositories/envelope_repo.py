@@ -6,7 +6,7 @@ from typing import List
 from sqlmodel import Session, func, select
 
 from budget_app.models import Envelope, EnvelopeSplit, Ledger
-from budget_app.schemas import EnvelopeBase
+from budget_app.schemas import EnvelopeBase, SystemEnvelopeType
 
 
 def get_envelope_by_name(session: Session, envelope_name: str) -> Envelope | None:
@@ -41,6 +41,46 @@ def get_envelope_by_id(session: Session, envelope_id: int) -> Envelope | None:
     return ret_envelope
 
 
+def get_envelope_by_system_role(
+    session: Session, system_role: SystemEnvelopeType
+) -> Envelope | None:
+    """Fetches a system envelope by its designated system role.
+
+    Args:
+        session: Active SQLModel database session.
+        system_role: The SystemEnvelopeType to look up.
+
+    Returns:
+        The matching Envelope instance if found, otherwise None.
+    """
+    stmt = select(Envelope).where(Envelope.system_role == system_role)
+    result = session.exec(stmt)
+    return result.one_or_none()
+
+
+def get_system_envelope(
+    session: Session, system_role: SystemEnvelopeType
+) -> Envelope:
+    """Fetches a system envelope by role, raising RuntimeError if it does not exist.
+
+    Args:
+        session: Active SQLModel database session.
+        system_role: The SystemEnvelopeType to look up.
+
+    Returns:
+        The matching Envelope instance.
+
+    Raises:
+        RuntimeError: If the system envelope is not found.
+    """
+    env = get_envelope_by_system_role(session, system_role)
+    if not env:
+        raise RuntimeError(
+            f"Required system envelope with role '{system_role.value}' does not exist."
+        )
+    return env
+
+
 def create_envelope(
     session: Session, new_envelope: EnvelopeBase, category_id: int | None = None
 ) -> Envelope:
@@ -55,24 +95,31 @@ def create_envelope(
         The newly created Envelope instance staged in the session.
 
     Raises:
-        ValueError: If an envelope with the given name already exists.
+        ValueError: If an envelope with the given name already exists, or if an envelope
+            with the given system role already exists.
     """
     test_env: Envelope | None = get_envelope_by_name(session, new_envelope.name)
-
-    if not test_env:
-        ret_envelope: Envelope = Envelope.model_validate(new_envelope)
-        if category_id is not None:
-            ret_envelope.category_id = category_id
-        session.add(ret_envelope)
-        return ret_envelope
-    else:
+    if test_env:
         raise ValueError("Envelope already exists")
+
+    if new_envelope.system_role is not None:
+        existing_role_env = get_envelope_by_system_role(session, new_envelope.system_role)
+        if existing_role_env:
+            raise ValueError(
+                f"An envelope with system role '{new_envelope.system_role.value}' already exists ('{existing_role_env.name}')"
+            )
+
+    ret_envelope: Envelope = Envelope.model_validate(new_envelope)
+    if category_id is not None:
+        ret_envelope.category_id = category_id
+    session.add(ret_envelope)
+    return ret_envelope
 
 
 def get_or_create_envelope(
     session: Session, new_envelope: EnvelopeBase, category_id: int | None = None
 ) -> Envelope:
-    """Retrieves an existing envelope by name, or creates and stages a new one if not found.
+    """Retrieves an existing envelope by role or name, or creates and stages a new one if not found.
 
     Args:
         session: Active SQLModel database session.
@@ -82,12 +129,23 @@ def get_or_create_envelope(
     Returns:
         The existing or newly staged Envelope instance.
     """
-    ret_envelope: Envelope | None = get_envelope_by_name(session, new_envelope.name)
+    ret_envelope: Envelope | None = None
+    if new_envelope.system_role is not None:
+        ret_envelope = get_envelope_by_system_role(session, new_envelope.system_role)
+
+    if not ret_envelope:
+        ret_envelope = get_envelope_by_name(session, new_envelope.name)
+
     if not ret_envelope:
         ret_envelope = Envelope.model_validate(new_envelope)
         if category_id is not None:
             ret_envelope.category_id = category_id
         session.add(ret_envelope)
+    else:
+        # If found by name but system_role was specified and not set, backfill it
+        if new_envelope.system_role is not None and ret_envelope.system_role is None:
+            ret_envelope.system_role = new_envelope.system_role
+            session.add(ret_envelope)
 
     return ret_envelope
 

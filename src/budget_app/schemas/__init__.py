@@ -27,6 +27,7 @@ from budget_app.schemas.envelope import (
     EnvelopeTransferRequest,
     EnvelopeUpdate,
     EnvelopeWithBalance,
+    SystemEnvelopeType,
 )
 from budget_app.schemas.envelope_split import (
     EnvelopeSplitBase,
@@ -82,6 +83,7 @@ __all__ = [
     "TransactionDetailResponse",
     "EnvelopeWithBalance",
     "EnvelopeUpdate",
+    "SystemEnvelopeType",
 ]
 
 

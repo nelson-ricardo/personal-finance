@@ -21,6 +21,7 @@ from budget_app.schemas import (
     AccountWithBalance,
     EnvelopeBase,
     EnvelopeSplitRequest,
+    SystemEnvelopeType,
     TransactionRequest,
     TransactionType,
 )
@@ -92,8 +93,18 @@ def create_account(
     fixed_cat_id = fixed_cat.id if fixed_cat else None
 
     if acc_info.account_type == AccountType.CREDIT_CARD:
-        cc_envelope = envelope_repo.get_or_create_envelope(
-            session, EnvelopeBase(name="Credit Card Payment"), category_id=fixed_cat_id
+        cc_envelope = (
+            envelope_repo.get_envelope_by_system_role(
+                session, SystemEnvelopeType.CREDIT_CARD_PAYMENT
+            )
+            or envelope_repo.get_or_create_envelope(
+                session,
+                EnvelopeBase(
+                    name="Credit Card Payment",
+                    system_role=SystemEnvelopeType.CREDIT_CARD_PAYMENT,
+                ),
+                category_id=fixed_cat_id,
+            )
         )
         if fixed_cat_id is not None and cc_envelope.category_id is None:
             cc_envelope.category_id = fixed_cat_id
@@ -112,12 +123,22 @@ def create_account(
     # 6. If initial balance > 0, post a Starting Balance transaction
     if initial_balance > Decimal("0.00"):
         if acc_info.account_type == AccountType.CASH:
-            envelope_repo.get_or_create_envelope(
-                session, EnvelopeBase(name="Unassigned")
+            unassigned_env = (
+                envelope_repo.get_envelope_by_system_role(
+                    session, SystemEnvelopeType.UNASSIGNED
+                )
+                or envelope_repo.get_or_create_envelope(
+                    session,
+                    EnvelopeBase(
+                        name="Unassigned",
+                        system_role=SystemEnvelopeType.UNASSIGNED,
+                    ),
+                )
             )
             split = EnvelopeSplitRequest(
                 amount=initial_balance,
-                envelope_name="Unassigned",
+                envelope_id=unassigned_env.id,
+                envelope_name=unassigned_env.name,
             )
             tx_req = TransactionRequest(
                 merchant="Starting Balance",
@@ -127,12 +148,22 @@ def create_account(
             )
             transaction_repo.create_transaction(session, tx_req)
         elif acc_info.account_type in (AccountType.CREDIT_CARD, AccountType.LOAN):
-            envelope_repo.get_or_create_envelope(
-                session, EnvelopeBase(name="Account Adjustment")
+            adj_env = (
+                envelope_repo.get_envelope_by_system_role(
+                    session, SystemEnvelopeType.ACCOUNT_ADJUSTMENT
+                )
+                or envelope_repo.get_or_create_envelope(
+                    session,
+                    EnvelopeBase(
+                        name="Account Adjustment",
+                        system_role=SystemEnvelopeType.ACCOUNT_ADJUSTMENT,
+                    ),
+                )
             )
             split = EnvelopeSplitRequest(
                 amount=initial_balance,
-                envelope_name="Account Adjustment",
+                envelope_id=adj_env.id,
+                envelope_name=adj_env.name,
             )
             tx_req = TransactionRequest(
                 merchant="Starting Balance",
@@ -184,11 +215,23 @@ def add_interest_charge(
     if amount <= Decimal("0.00"):
         raise ValueError("Interest charge amount must be greater than 0")
 
-    envelope_repo.get_or_create_envelope(session, EnvelopeBase(name="Account Adjustment"))
+    adj_env = (
+        envelope_repo.get_envelope_by_system_role(
+            session, SystemEnvelopeType.ACCOUNT_ADJUSTMENT
+        )
+        or envelope_repo.get_or_create_envelope(
+            session,
+            EnvelopeBase(
+                name="Account Adjustment",
+                system_role=SystemEnvelopeType.ACCOUNT_ADJUSTMENT,
+            ),
+        )
+    )
 
     split = EnvelopeSplitRequest(
         amount=amount,
-        envelope_name="Account Adjustment",
+        envelope_id=adj_env.id,
+        envelope_name=adj_env.name,
     )
     tx_req = TransactionRequest(
         merchant="Interest Charge",
@@ -239,11 +282,23 @@ def add_interest_earned(
     if amount <= Decimal("0.00"):
         raise ValueError("Interest earned amount must be greater than 0")
 
-    envelope_repo.get_or_create_envelope(session, EnvelopeBase(name="Unassigned"))
+    unassigned_env = (
+        envelope_repo.get_envelope_by_system_role(
+            session, SystemEnvelopeType.UNASSIGNED
+        )
+        or envelope_repo.get_or_create_envelope(
+            session,
+            EnvelopeBase(
+                name="Unassigned",
+                system_role=SystemEnvelopeType.UNASSIGNED,
+            ),
+        )
+    )
 
     split = EnvelopeSplitRequest(
         amount=amount,
-        envelope_name="Unassigned",
+        envelope_id=unassigned_env.id,
+        envelope_name=unassigned_env.name,
     )
     tx_req = TransactionRequest(
         merchant="Interest Earned",
@@ -359,6 +414,7 @@ def delete_account(session: Session, account_name: str) -> Account:
         linked_env = envelope_repo.get_envelope_by_id(session, account.envelope_id)
         if (
             linked_env is not None
+            and linked_env.system_role is None
             and linked_env.name not in {"Unassigned", "Credit Card Payment", "Account Adjustment"}
         ):
             env_balance = envelope_repo.get_balance_for_envelope(session, linked_env)
@@ -584,12 +640,22 @@ def adjust_account_balance(
     if account.account_type == AccountType.CASH:
         if delta > Decimal("0.00"):
             # Cash surplus: Found money, credit to Unassigned
-            envelope_repo.get_or_create_envelope(
-                session, EnvelopeBase(name="Unassigned")
+            unassigned_env = (
+                envelope_repo.get_envelope_by_system_role(
+                    session, SystemEnvelopeType.UNASSIGNED
+                )
+                or envelope_repo.get_or_create_envelope(
+                    session,
+                    EnvelopeBase(
+                        name="Unassigned",
+                        system_role=SystemEnvelopeType.UNASSIGNED,
+                    ),
+                )
             )
             split = EnvelopeSplitRequest(
                 amount=delta,
-                envelope_name="Unassigned",
+                envelope_id=unassigned_env.id,
+                envelope_name=unassigned_env.name,
             )
             tx_req = TransactionRequest(
                 merchant="Balance Adjustment",
@@ -605,20 +671,24 @@ def adjust_account_balance(
                     "Cash reduction must specify an envelope to deduct funds from"
                 )
             env_name = envelope_name.strip()
-            if env_name == "Account Adjustment":
+            target_env = envelope_repo.get_envelope_by_name(session, env_name)
+            if not target_env:
+                raise ValueError(f"Envelope '{env_name}' does not exist")
+            if (
+                target_env.system_role == SystemEnvelopeType.ACCOUNT_ADJUSTMENT
+                or env_name == "Account Adjustment"
+            ):
                 raise ValueError(
                     "Cash reduction cannot be absorbed by 'Account Adjustment'. "
                     "It must be deducted from a budgeting envelope."
                 )
-            target_env = envelope_repo.get_envelope_by_name(session, env_name)
-            if not target_env:
-                raise ValueError(f"Envelope '{env_name}' does not exist")
             if not target_env.is_active:
                 raise ValueError(f"Envelope '{env_name}' is inactive/archived")
 
             split = EnvelopeSplitRequest(
                 amount=-abs(delta),
-                envelope_name=env_name,
+                envelope_id=target_env.id,
+                envelope_name=target_env.name,
             )
             tx_req = TransactionRequest(
                 merchant="Balance Adjustment",
@@ -629,14 +699,24 @@ def adjust_account_balance(
             )
     else:
         # Debt account: CREDIT_CARD or LOAN
-        envelope_repo.get_or_create_envelope(
-            session, EnvelopeBase(name="Account Adjustment")
+        adj_env = (
+            envelope_repo.get_envelope_by_system_role(
+                session, SystemEnvelopeType.ACCOUNT_ADJUSTMENT
+            )
+            or envelope_repo.get_or_create_envelope(
+                session,
+                EnvelopeBase(
+                    name="Account Adjustment",
+                    system_role=SystemEnvelopeType.ACCOUNT_ADJUSTMENT,
+                ),
+            )
         )
         if delta > Decimal("0.00"):
             # Debt increased: You owe more
             split = EnvelopeSplitRequest(
                 amount=delta,
-                envelope_name="Account Adjustment",
+                envelope_id=adj_env.id,
+                envelope_name=adj_env.name,
             )
             tx_req = TransactionRequest(
                 merchant="Balance Adjustment",
@@ -649,7 +729,8 @@ def adjust_account_balance(
             # Debt decreased: You owe less
             split = EnvelopeSplitRequest(
                 amount=abs(delta),
-                envelope_name="Account Adjustment",
+                envelope_id=adj_env.id,
+                envelope_name=adj_env.name,
             )
             tx_req = TransactionRequest(
                 merchant="Balance Adjustment",

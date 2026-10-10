@@ -30,6 +30,7 @@ from budget_app.schemas import (
     FinancedTransactionUpdateRequest,
     LedgerRequest,
     LedgerResponse,
+    SystemEnvelopeType,
     TransactionDetailResponse,
     TransactionRequest,
     TransactionResponse,
@@ -77,9 +78,24 @@ def add_reg_transaction(session: Session, transaction: TransactionRequest) -> Tr
 
     # move money to credit card payment to balance the transaction out
     if payment_method.account_type is AccountType.CREDIT_CARD:
+        cc_env = (
+            payment_method.envelope
+            or envelope_repo.get_envelope_by_system_role(
+                session, SystemEnvelopeType.CREDIT_CARD_PAYMENT
+            )
+            or envelope_repo.get_envelope_by_name(session, "Credit Card Payment")
+        )
+        if not cc_env:
+            raise RuntimeError(
+                "System error: Credit card payment envelope does not exist."
+            )
         cc_payment = envelope_split_repo.add_envelope_split(
             session, 
-            EnvelopeSplitRequest(amount=transaction_total, envelope_name="Credit Card Payment")
+            EnvelopeSplitRequest(
+                amount=transaction_total,
+                envelope_id=cc_env.id,
+                envelope_name=cc_env.name,
+            )
         )
         master_transaction.splits.append(cc_payment)
 
@@ -221,7 +237,15 @@ def calculate_transaction_total(transaction: Transaction) -> Decimal:
         if (
             is_credit_card
             and split.envelope is not None
-            and split.envelope.name == "Credit Card Payment"
+            and (
+                split.envelope.system_role == SystemEnvelopeType.CREDIT_CARD_PAYMENT
+                or (
+                    transaction.account is not None
+                    and transaction.account.envelope_id is not None
+                    and split.envelope_id == transaction.account.envelope_id
+                )
+                or split.envelope.name == "Credit Card Payment"
+            )
         ):
             continue
         total += abs(split.amount)
@@ -346,7 +370,12 @@ def get_transactions(
         resolved_acc_id = acc.id
 
     # Find CC payment envelope ID for balancing entry filtering
-    cc_env = envelope_repo.get_envelope_by_name(session, "Credit Card Payment")
+    cc_env = (
+        envelope_repo.get_envelope_by_system_role(
+            session, SystemEnvelopeType.CREDIT_CARD_PAYMENT
+        )
+        or envelope_repo.get_envelope_by_name(session, "Credit Card Payment")
+    )
     cc_env_id = cc_env.id if cc_env else None
 
     # Determine whether to exclude reversed transactions
@@ -615,7 +644,15 @@ def update_transaction(
                     raise ValueError(
                         f"Envelope for envelope split #{split.id} not found."
                     )
-                if is_old_cc and split.envelope.name == "Credit Card Payment":
+                if is_old_cc and (
+                    split.envelope.system_role == SystemEnvelopeType.CREDIT_CARD_PAYMENT
+                    or (
+                        tx.account is not None
+                        and tx.account.envelope_id is not None
+                        and split.envelope_id == tx.account.envelope_id
+                    )
+                    or split.envelope.name == "Credit Card Payment"
+                ):
                     continue
                 target_split_requests.append(
                     EnvelopeSplitRequest(
@@ -649,8 +686,18 @@ def update_transaction(
             target_account.account_type == AccountType.CREDIT_CARD
             and tx.transaction_type == TransactionType.EXPENSE
         ):
-            cc_env = envelope_repo.get_or_create_envelope(
-                session, EnvelopeBase(name="Credit Card Payment")
+            cc_env = (
+                target_account.envelope
+                or envelope_repo.get_envelope_by_system_role(
+                    session, SystemEnvelopeType.CREDIT_CARD_PAYMENT
+                )
+                or envelope_repo.get_or_create_envelope(
+                    session,
+                    EnvelopeBase(
+                        name="Credit Card Payment",
+                        system_role=SystemEnvelopeType.CREDIT_CARD_PAYMENT,
+                    ),
+                )
             )
             tx.splits.append(EnvelopeSplit(amount=new_total, envelope=cc_env))
 

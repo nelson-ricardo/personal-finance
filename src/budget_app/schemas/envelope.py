@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import Enum
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
 
@@ -12,12 +13,23 @@ if TYPE_CHECKING:
     from budget_app.models.transaction import Transaction
 
 
+class SystemEnvelopeType(str, Enum):
+    """System envelope roles within the budgeting system."""
+
+    UNASSIGNED = "UNASSIGNED"
+    CREDIT_CARD_PAYMENT = "CREDIT_CARD_PAYMENT"
+    ACCOUNT_ADJUSTMENT = "ACCOUNT_ADJUSTMENT"
+
+
 class EnvelopeBase(SQLModel):
     """Base schema defining properties for a budgeting envelope category."""
 
     name: str = Field(unique=True, description="Unique display name of the envelope category")
     note: Optional[str] = Field(default=None, description="Optional description, goal, or monthly payment note")
     is_active: bool = Field(default=True, description="Flag indicating whether this envelope is active for budgeting")
+    system_role: Optional[SystemEnvelopeType] = Field(
+        default=None, description="Designated system role for this envelope, if any"
+    )
 
 class EnvelopeCreate(EnvelopeBase):
     """Payload for creating a new envelope, with an optional initial category assignment."""

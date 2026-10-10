@@ -15,10 +15,13 @@ from budget_app.schemas import (
     EnvelopeUpdate,
     EnvelopeWithBalance,
     LedgerRequest,
+    SystemEnvelopeType,
     TransactionRequest,
     TransactionType,
 )
+from budget_app.services import account_service
 from budget_app.services import envelope_service as env_service
+from budget_app.services import transaction_service as tx_service
 
 
 class TestCreateEnvelope:
@@ -594,54 +597,107 @@ class TestUpdateEnvelopeInfo:
                 envelope_info=EnvelopeUpdate(name="EnvB"),
             )
 
-    def test_update_envelope_rename_system_envelope_raises_error(self, session):
-        with pytest.raises(
-            ValueError, match="Cannot rename system envelope 'Unassigned'"
-        ):
-            env_service.update_envelope_info(
-                session,
-                target_name="Unassigned",
-                envelope_info=EnvelopeUpdate(name="CustomUnassigned"),
-            )
+    def test_update_envelope_rename_unassigned_succeeds_and_preserves_role(self, session):
+        updated = env_service.update_envelope_info(
+            session,
+            target_name="Unassigned",
+            envelope_info=EnvelopeUpdate(name="Ready to Assign"),
+        )
+        assert updated.name == "Ready to Assign"
+        assert updated.system_role == SystemEnvelopeType.UNASSIGNED
 
-    def test_update_envelope_rename_to_system_name_raises_error(self, session):
-        env_service.create_envelope(session, EnvelopeBase(name="MySavings"))
+        # Old name no longer exists
+        assert get_envelope_by_name(session, "Unassigned") is None
+        assert get_envelope_by_name(session, "Ready to Assign") is not None
 
-        with pytest.raises(
-            ValueError,
-            match="Cannot rename envelope to protected system name 'Unassigned'",
-        ):
-            env_service.update_envelope_info(
-                session,
-                target_name="MySavings",
-                envelope_info=EnvelopeUpdate(name="Unassigned"),
-            )
+        # add_to_cash still routes to the renamed envelope
+        tx = env_service.add_to_cash(
+            session,
+            amount=Decimal("500.00"),
+            source="Paycheck",
+        )
+        assert tx is not None
+        assert get_balance_for_envelope(session, updated) == Decimal("500.00")
 
-    def test_update_envelope_rename_account_adjustment_raises_error(self, session):
-        env_service.create_envelope(session, EnvelopeBase(name="Account Adjustment"))
-        with pytest.raises(
-            ValueError, match="Cannot rename system envelope 'Account Adjustment'"
-        ):
-            env_service.update_envelope_info(
-                session,
-                target_name="Account Adjustment",
-                envelope_info=EnvelopeUpdate(name="CustomAdjustment"),
-            )
+        # assign_to_envelope transfers from the renamed envelope
+        target_env = env_service.create_envelope(
+            session, EnvelopeBase(name="Groceries")
+        )
+        transfer = env_service.assign_to_envelope(
+            session,
+            destination="Groceries",
+            amount=Decimal("150.00"),
+        )
+        assert transfer.new_balance_src == Decimal("350.00")
+        assert transfer.new_balance_dest == Decimal("150.00")
 
-    def test_update_envelope_rename_to_account_adjustment_raises_error(self, session):
-        env_service.create_envelope(session, EnvelopeBase(name="MyAdjustments"))
+        # Deleting or deactivating under the new name is still prohibited
+        with pytest.raises(ValueError, match="Cannot delete system envelope 'Ready to Assign'"):
+            env_service.perma_delete_envelope(session, "Ready to Assign")
 
-        with pytest.raises(
-            ValueError,
-            match=(
-                "Cannot rename envelope to protected system name 'Account Adjustment'"
+        with pytest.raises(ValueError, match="Cannot deactivate system envelope 'Ready to Assign'"):
+            env_service.deactivate_envelope(session, "Ready to Assign")
+
+    def test_update_envelope_rename_credit_card_payment_succeeds(self, session):
+        updated = env_service.update_envelope_info(
+            session,
+            target_name="Credit Card Payment",
+            envelope_info=EnvelopeUpdate(name="Card Payment Holding"),
+        )
+        assert updated.name == "Card Payment Holding"
+        assert updated.system_role == SystemEnvelopeType.CREDIT_CARD_PAYMENT
+
+        # Create CC account linked to CC payment
+        cc_acc = account_service.create_account(
+            session,
+            AccountBase(name="Chase Sapphire", account_type=AccountType.CREDIT_CARD),
+        )
+        # Create a spending envelope and fund it
+        dining_env = env_service.create_envelope(
+            session, EnvelopeBase(name="Dining")
+        )
+        env_service.add_to_cash(session, Decimal("200.00"), "Bonus")
+        env_service.assign_to_envelope(session, "Dining", Decimal("100.00"))
+
+        # Log a regular CC transaction
+        tx = tx_service.add_reg_transaction(
+            session,
+            TransactionRequest(
+                merchant="Restaurant",
+                payment_method_name="Chase Sapphire",
+                transaction_type=TransactionType.EXPENSE,
+                splits=[
+                    EnvelopeSplitRequest(amount=Decimal("-60.00"), envelope_name="Dining")
+                ],
             ),
-        ):
-            env_service.update_envelope_info(
-                session,
-                target_name="MyAdjustments",
-                envelope_info=EnvelopeUpdate(name="Account Adjustment"),
-            )
+        )
+        assert tx is not None
+        # Check that balancing split was added to the renamed CC payment envelope
+        assert get_balance_for_envelope(session, updated) == Decimal("60.00")
+        # Check that transaction total correctly filters out the balancing split
+        total = tx_service.calculate_transaction_total(tx)
+        assert total == Decimal("60.00")
+
+    def test_update_envelope_rename_account_adjustment_succeeds(self, session):
+        updated = env_service.update_envelope_info(
+            session,
+            target_name="Account Adjustment",
+            envelope_info=EnvelopeUpdate(name="Reconciliation Debt"),
+        )
+        assert updated.name == "Reconciliation Debt"
+        assert updated.system_role == SystemEnvelopeType.ACCOUNT_ADJUSTMENT
+
+        # Creating a debt account with starting balance posts to the renamed envelope
+        loan_acc = account_service.create_account(
+            session,
+            AccountBase(
+                name="Auto Loan",
+                account_type=AccountType.LOAN,
+                current_balance=Decimal("5000.00"),
+            ),
+        )
+        assert loan_acc is not None
+        assert get_balance_for_envelope(session, updated) == Decimal("5000.00")
 
     def test_update_envelope_empty_target_name_raises_error(self, session):
         with pytest.raises(ValueError, match="envelope name cannot be empty"):
