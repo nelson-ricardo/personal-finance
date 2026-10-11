@@ -28,7 +28,9 @@ from budget_app.schemas import (
 
 
 def create_account(
-    session: Session, acc_info: AccountBase | AccountCreate
+    session: Session,
+    acc_info: AccountBase | AccountCreate,
+    logged_date: date | None = None,
 ) -> Account:
     """Creates a new financial account and persists it in the database.
 
@@ -39,6 +41,8 @@ def create_account(
     Args:
         session: Active SQLModel database session.
         acc_info: Account metadata including name, account type, and initial balance.
+        logged_date: Optional date for the auto-generated Starting Balance transaction
+            (defaults to today when omitted).
 
     Returns:
         The newly created and refreshed Account instance with derived balance.
@@ -121,6 +125,7 @@ def create_account(
     session.refresh(new_account)
 
     # 6. If initial balance > 0, post a Starting Balance transaction
+    date_kwargs = {"logged_date": logged_date} if logged_date is not None else {}
     if initial_balance > Decimal("0.00"):
         if acc_info.account_type == AccountType.CASH:
             unassigned_env = (
@@ -145,6 +150,7 @@ def create_account(
                 payment_method_name=cleaned_name,
                 transaction_type=TransactionType.INCOME,
                 splits=[split],
+                **date_kwargs,
             )
             transaction_repo.create_transaction(session, tx_req)
         elif acc_info.account_type in (AccountType.CREDIT_CARD, AccountType.LOAN):
@@ -170,6 +176,7 @@ def create_account(
                 payment_method_name=cleaned_name,
                 transaction_type=TransactionType.INTEREST_CHARGE,
                 splits=[split],
+                **date_kwargs,
             )
             transaction_repo.create_transaction(session, tx_req)
 
@@ -521,7 +528,12 @@ def update_account(
     session.refresh(account)
     return account
 
-def make_payment(session: Session, target: str, amount: Decimal) -> List[Transaction]:
+def make_payment(
+    session: Session,
+    target: str,
+    amount: Decimal,
+    logged_date: date | None = None,
+) -> List[Transaction]:
     # fetch the account
     target_account: Account | None = account_repo.get_account_by_name(session, target)
 
@@ -549,6 +561,7 @@ def make_payment(session: Session, target: str, amount: Decimal) -> List[Transac
         raise ValueError(f"Insufficient funds in envelope {envelope.name}: available {env_bal}, required {amount}")
 
     # create the credit card payment transaction
+    date_kwargs = {"logged_date": logged_date} if logged_date is not None else {}
     tx_pay_req: TransactionRequest = TransactionRequest(
         merchant=target,
         note=f"payment for {target} account",
@@ -559,7 +572,8 @@ def make_payment(session: Session, target: str, amount: Decimal) -> List[Transac
                 amount=Decimal(-amount),
                 envelope_name=envelope.name
             )
-        ]
+        ],
+        **date_kwargs,
     )
 
     tx_bal_adj: TransactionRequest = TransactionRequest(
@@ -572,7 +586,8 @@ def make_payment(session: Session, target: str, amount: Decimal) -> List[Transac
                 amount=Decimal(amount),
                 envelope_name="Account Adjustment"
             )
-        ]
+        ],
+        **date_kwargs,
     )
 
     tx_pay: Transaction = transaction_repo.create_transaction(session, tx_pay_req)

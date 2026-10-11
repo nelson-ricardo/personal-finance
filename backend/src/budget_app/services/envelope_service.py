@@ -7,6 +7,7 @@ Handles:
 - Allocating funds from 'Unassigned' to specific budgeting envelopes.
 """
 
+from datetime import date
 from decimal import Decimal
 from typing import List
 
@@ -77,7 +78,11 @@ def create_envelope(
 
 
 def add_to_cash(
-    session: Session, amount: Decimal, source: str, note: str | None = None
+    session: Session,
+    amount: Decimal,
+    source: str,
+    note: str | None = None,
+    logged_date: date | None = None,
 ) -> Transaction:
     """Adds income to the Cash account balance and assigns it to the 'Unassigned' envelope.
 
@@ -86,6 +91,7 @@ def add_to_cash(
         amount: Positive amount of income being added.
         source: Name of the income source or merchant.
         note: Optional note detailing the income transaction.
+        logged_date: Optional date of the income (defaults to today when omitted).
 
     Returns:
         The created master income Transaction instance.
@@ -119,12 +125,14 @@ def add_to_cash(
         envelope_id=unassigned_envelope.id,
         envelope_name=unassigned_envelope.name,
     )
+    date_kwargs = {"logged_date": logged_date} if logged_date is not None else {}
     master_tx_req: TransactionRequest = TransactionRequest(
         merchant=source,
         note=note,
         payment_method_name="Cash",
         transaction_type=TransactionType.INCOME,
         splits=[entry],
+        **date_kwargs,
     )
 
     master_transaction: Transaction = transaction_repo.create_transaction(
@@ -137,7 +145,11 @@ def add_to_cash(
 
 
 def transfer_between_envelopes(
-    session: Session, source: str, destination: str, amount: Decimal
+    session: Session,
+    source: str,
+    destination: str,
+    amount: Decimal,
+    logged_date: date | None = None,
 ) -> EnvelopeTransfer:
     """Transfers funds between two envelopes and records a transfer transaction.
 
@@ -146,6 +158,7 @@ def transfer_between_envelopes(
         source: Name of the envelope to deduct funds from.
         destination: Name of the envelope to receive funds.
         amount: Positive amount of money to transfer.
+        logged_date: Optional date of the transfer (defaults to today when omitted).
 
     Returns:
         EnvelopeTransfer containing source/destination envelopes, updated balances,
@@ -205,11 +218,13 @@ def transfer_between_envelopes(
         amount=amount, envelope_name=destination
     )
 
+    date_kwargs = {"logged_date": logged_date} if logged_date is not None else {}
     transaction_request = TransactionRequest(
         merchant=f"transfer {source} -> {destination}",
         payment_method_name="Cash",
         transaction_type=TransactionType.TRANSFER,
         splits=[split_entry_src, split_entry_dest],
+        **date_kwargs,
     )
 
     master_transaction: Transaction = transaction_repo.create_transaction(
@@ -229,7 +244,10 @@ def transfer_between_envelopes(
 
 
 def assign_to_envelope(
-    session: Session, destination: str, amount: Decimal
+    session: Session,
+    destination: str,
+    amount: Decimal,
+    logged_date: date | None = None,
 ) -> EnvelopeTransfer:
     """Transfers funds from the 'Unassigned' envelope to a specified destination envelope.
 
@@ -237,6 +255,7 @@ def assign_to_envelope(
         session: Active SQLModel database session.
         destination: Name of the envelope to receive funds.
         amount: Positive amount of money to allocate from Unassigned.
+        logged_date: Optional date of the assignment (defaults to today when omitted).
 
     Returns:
         EnvelopeTransfer containing source (Unassigned) and destination envelopes,
@@ -257,6 +276,7 @@ def assign_to_envelope(
         source=unassigned_name,
         destination=destination,
         amount=amount,
+        logged_date=logged_date,
     )
 
 def deactivate_envelope(session: Session, envelope_name: str) -> Envelope:

@@ -36,7 +36,7 @@ def create_transaction(
         )
 
     # 2. Resolve each envelope and instantiate EnvelopeSplit entries
-    splits_db = []
+    resolved_splits = []
     for entry in transaction_info.splits:
         env = None
         if entry.envelope_id is not None:
@@ -49,7 +49,12 @@ def create_transaction(
                 raise ValueError(f"Envelope {entry.envelope_name} does not exist.")
         else:
             raise ValueError("Split must specify envelope_name or envelope_id.")
-        splits_db.append(EnvelopeSplit(amount=entry.amount, envelope=env))
+        resolved_splits.append((entry, env))
+
+    splits_db = [
+        EnvelopeSplit(amount=entry.amount, envelope=env)
+        for entry, env in resolved_splits
+    ]
 
     # 3. Create master Transaction entity bound to account and splits
     transaction: Transaction = Transaction(

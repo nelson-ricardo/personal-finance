@@ -662,26 +662,28 @@ def update_transaction(
                 )
 
         # Validate that all envelopes exist
-        envelopes_by_name = {}
+        resolved_envelopes = []
         for split_req in target_split_requests:
-            env = envelope_repo.get_envelope_by_name(session, split_req.envelope_name)
-            if not env:
-                raise ValueError(f"Envelope {split_req.envelope_name} does not exist.")
-            envelopes_by_name[split_req.envelope_name] = env
+            env = None
+            if split_req.envelope_id is not None:
+                env = envelope_repo.get_envelope_by_id(session, split_req.envelope_id)
+                if not env:
+                    raise ValueError(f"Envelope ID {split_req.envelope_id} does not exist.")
+            elif split_req.envelope_name:
+                env = envelope_repo.get_envelope_by_name(session, split_req.envelope_name)
+                if not env:
+                    raise ValueError(f"Envelope {split_req.envelope_name} does not exist.")
+            else:
+                raise ValueError("Envelope split must specify envelope_name or envelope_id.")
+            resolved_envelopes.append((split_req, env))
 
         # 1. Delete old envelope splits
         for split in list(tx.splits):
             session.delete(split)
         tx.splits.clear()
 
-        # 2. Create new user envelope splits
-        new_total = Decimal("0.00")
-        for split_req in target_split_requests:
-            env = envelopes_by_name[split_req.envelope_name]
-            tx.splits.append(EnvelopeSplit(amount=split_req.amount, envelope=env))
-            new_total += abs(split_req.amount)
-
-        # 3. If target account is CC and transaction is Expense, add balancing entry
+        # 2. Resolve CC holding envelope upfront if needed
+        cc_env = None
         if (
             target_account.account_type == AccountType.CREDIT_CARD
             and tx.transaction_type == TransactionType.EXPENSE
@@ -699,6 +701,14 @@ def update_transaction(
                     ),
                 )
             )
+
+        # 3. Create new user envelope splits
+        new_total = Decimal("0.00")
+        for split_req, env in resolved_envelopes:
+            tx.splits.append(EnvelopeSplit(amount=split_req.amount, envelope=env))
+            new_total += abs(split_req.amount)
+
+        if cc_env is not None:
             tx.splits.append(EnvelopeSplit(amount=new_total, envelope=cc_env))
 
         # Bind transaction to target account
