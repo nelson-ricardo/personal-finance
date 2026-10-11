@@ -7,8 +7,8 @@ from fastapi import APIRouter
 from fastapi.concurrency import run_in_threadpool
 
 from budget_app.db import engine
-from budget_app.dev import database
-from budget_app.dev.database import DevDatabaseConfig
+from budget_app.db import database
+from budget_app.db.database import DevDatabaseConfig
 
 router = APIRouter(prefix="/dev", tags=["dev"])
 

@@ -54,5 +54,8 @@ cd backend
 uv run pytest
 
 # Run dev backend server directly
-uv run python dev_server.py
+uv run python main.py --dev
+
+# Run standard/production backend server
+uv run python main.py
 ```

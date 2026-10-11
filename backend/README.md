@@ -7,7 +7,13 @@ FastAPI backend application for personal budgeting.
 To start the backend in dev mode with an isolated frontend testing database:
 
 ```bash
-uv run python dev_server.py
+uv run python main.py --dev
+```
+
+To run standard/production mode:
+
+```bash
+uv run python main.py
 ```
 
 Features:

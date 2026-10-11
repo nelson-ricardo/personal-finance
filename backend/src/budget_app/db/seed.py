@@ -21,7 +21,7 @@ from decimal import Decimal
 
 from sqlmodel import Session, select
 
-from budget_app.dev.timeline import Timeline
+from budget_app.db.timeline import Timeline
 from budget_app.models import Envelope
 from budget_app.repositories import envelope_repo
 from budget_app.schemas import (
