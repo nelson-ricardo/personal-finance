@@ -372,6 +372,7 @@ def get_envelopes_and_balances(
                 is_active=envelope.is_active,
                 category_id=envelope.category_id,
                 category_name=cat_name,
+                system_role=envelope.system_role,
                 balance=curr_balance,
             )
         )
@@ -423,6 +424,7 @@ def get_single_envelope_w_balance(
         is_active=target_envelope.is_active,
         category_id=target_envelope.category_id,
         category_name=cat_name,
+        system_role=target_envelope.system_role,
         balance=curr_balance,
     )
 

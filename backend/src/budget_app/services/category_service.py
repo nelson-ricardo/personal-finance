@@ -203,6 +203,7 @@ def get_categories_with_envelopes(
                     is_active=env.is_active,
                     category_id=cat.id,
                     category_name=cat.name,
+                    system_role=env.system_role,
                     balance=bal,
                 )
             )
@@ -237,6 +238,7 @@ def get_categories_with_envelopes(
                     is_active=env.is_active,
                     category_id=None,
                     category_name=None,
+                    system_role=env.system_role,
                     balance=bal,
                 )
             )

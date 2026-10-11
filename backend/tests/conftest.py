@@ -5,13 +5,17 @@ from dotenv import load_dotenv
 from alembic.config import Config
 from alembic import command
 from sqlalchemy import create_engine as create_sqla_engine, text
-from sqlmodel import Session, create_engine, SQLModel
+from sqlmodel import Session, create_engine, SQLModel, select
 from fastapi.testclient import TestClient
 from budget_app.api.main import app
 from budget_app.db import get_session
 
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parents[1]
+
 # load .env.test before any engine initialization, overriding anything that might have loaded before
-load_dotenv(".env.test", override=True)
+load_dotenv(BASE_DIR / ".env.test", override=True)
 
 TEST_DATABASE_URL = os.getenv("DATABASE_URL")
 if not TEST_DATABASE_URL:
@@ -44,6 +48,7 @@ def setup_test_database() -> Generator[None, None, None]:
     Session-wide setup:
     1. Ensures the test database exists in the PostgreSQL server
     2. Runs 'alembic upgrade head' to apply all migrations
+    3. Runs init_db to seed initial system records if missing
     """
 
     # Step 1
@@ -53,8 +58,62 @@ def setup_test_database() -> Generator[None, None, None]:
     ensure_test_database_exists(TEST_DATABASE_URL)
 
     # Step 2
-    alembic_cfg = Config("alembic.ini")
+    alembic_cfg = Config(str(BASE_DIR / "alembic.ini"))
     command.upgrade(alembic_cfg, "head")
+
+    # Step 3: Ensure base system category, system envelopes, and cash account exist
+    from decimal import Decimal
+    from budget_app.models import Envelope, EnvelopeCategory
+    from budget_app.schemas import AccountCreate, AccountType, SystemEnvelopeType
+    from budget_app.repositories import account_repo
+
+    init_engine = create_engine(TEST_DATABASE_URL)
+    with Session(init_engine) as init_session:
+        system_cat = init_session.exec(
+            select(EnvelopeCategory).where(EnvelopeCategory.name == "System")
+        ).first()
+        if not system_cat:
+            system_cat = EnvelopeCategory(name="System", order_index=99, is_active=True)
+            init_session.add(system_cat)
+            init_session.commit()
+            init_session.refresh(system_cat)
+
+        system_envelopes = [
+            ("Unassigned", SystemEnvelopeType.UNASSIGNED, "default bucket for money coming in"),
+            ("Credit Card Payment", SystemEnvelopeType.CREDIT_CARD_PAYMENT, "holding envelope for credit card balance payoffs"),
+            ("Account Adjustment", SystemEnvelopeType.ACCOUNT_ADJUSTMENT, "system envelope absorbing debt for account balance adjustments"),
+        ]
+        for name, role, note in system_envelopes:
+            existing = init_session.exec(
+                select(Envelope).where((Envelope.system_role == role) | (Envelope.name == name))
+            ).first()
+            if not existing:
+                init_session.add(
+                    Envelope(
+                        name=name,
+                        system_role=role,
+                        note=note,
+                        category_id=system_cat.id,
+                        is_active=True,
+                    )
+                )
+            elif existing.system_role != role:
+                existing.system_role = role
+                init_session.add(existing)
+
+        cash = account_repo.get_account_by_name(init_session, "Cash")
+        if not cash:
+            account_repo.create_account(
+                init_session,
+                AccountCreate(
+                    name="Cash",
+                    account_type=AccountType.CASH,
+                    starting_balance=Decimal("0.00"),
+                ),
+            )
+
+        init_session.commit()
+    init_engine.dispose()
 
     yield
 

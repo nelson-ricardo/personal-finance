@@ -9,6 +9,7 @@ from budget_app.repositories.envelope_repo import (
 )
 from budget_app.repositories.transaction_repo import create_transaction
 from budget_app.schemas import (
+    AccountBase,
     AccountType,
     EnvelopeBase,
     EnvelopeSplitRequest,
