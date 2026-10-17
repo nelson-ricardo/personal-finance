@@ -41,5 +41,11 @@
 	"imports": {
 		"#lib": "./src/lib/index.js",
 		"#lib/*": "./src/lib/*"
+	},
+	"dependencies": {
+		"@fontsource-variable/jetbrains-mono": "^5.3.0",
+		"@fontsource-variable/plus-jakarta-sans": "^5.3.0",
+		"sveltekit-superforms": "^3.0.0",
+		"zod": "^4.6.7"
 	}
 }

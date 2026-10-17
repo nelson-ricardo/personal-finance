@@ -1,2 +1,4 @@
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
+<h1>WELCOME TO THE COOLEST PERSONAL BUDGETING APP IN THE WORLD</h1>
+<div>
+    <p>MY DASHBOARD WILL BE HERE EVENTUALLY</p>
+</div>

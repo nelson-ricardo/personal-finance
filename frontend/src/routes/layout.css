@@ -1,2 +1,13 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
+
+@theme {
+    --font-sans: 'Plus Jakarta Sans Variable', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono Variable', Consolas, monospace;
+}
+
+@layer base {
+    body {
+        font-family: var(--font-sans);
+    }
+}
