@@ -263,7 +263,6 @@ def get_transactions(
     date_to: date | None = None,
     transaction_type: TransactionType | list[TransactionType] | None = None,
     include_reversed: bool = False,
-    **kwargs,
 ) -> list[TransactionResponse]:
     """Fetches a set of transactions based on various filtering criteria.
 
@@ -290,20 +289,6 @@ def get_transactions(
         ValueError: If limit <= 0, date_from > date_to, invalid transaction_type,
             or if the specified envelope or account does not exist.
     """
-    # Support camelCase alias transactionType or legacy aliases if passed
-    if "transactionType" in kwargs and transaction_type is None:
-        transaction_type = kwargs["transactionType"]
-    if "includeReversed" in kwargs:
-        include_reversed = kwargs["includeReversed"]
-    if "envelope_id" in kwargs and envelope is None:
-        envelope = kwargs["envelope_id"]
-    if "account_id" in kwargs and account is None:
-        account = kwargs["account_id"]
-    if "envelope_name" in kwargs and envelope is None:
-        envelope = kwargs["envelope_name"]
-    if "account_name" in kwargs and account is None:
-        account = kwargs["account_name"]
-
     today = date.today()
     if date_from is None:
         date_from = date(today.year, today.month, 3)

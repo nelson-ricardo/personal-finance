@@ -119,7 +119,7 @@ def seed(session: Session, today: date | None = None) -> None:
         AccountCreate(
             name=CHASE,
             account_type=AccountType.CREDIT_CARD,
-            due_date=t.next_day_of_month(25),
+            due_date=25,
         ),
     )
     account_service.create_account(
@@ -127,7 +127,7 @@ def seed(session: Session, today: date | None = None) -> None:
         AccountCreate(
             name=AMEX,
             account_type=AccountType.CREDIT_CARD,
-            due_date=t.next_day_of_month(19),
+            due_date=19,
         ),
     )
     account_service.create_account(
@@ -137,7 +137,7 @@ def seed(session: Session, today: date | None = None) -> None:
             account_type=AccountType.LOAN,
             starting_balance=_d("8400.00"),
             monthly_payment=_d("285.00"),
-            due_date=t.next_day_of_month(10),
+            due_date=10,
         ),
         logged_date=t.on(0, 1),
     )

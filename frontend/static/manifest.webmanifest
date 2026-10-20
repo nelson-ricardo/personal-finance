@@ -1,0 +1,33 @@
+{
+	"$schema": "https://json.schemastore.org/web-manifest-combined.json",
+	"name": "Personal Budgeting — [ Name Here ]",
+	"short_name": "[ Name Here ]",
+	"description": "Disciplined personal budgeting, accounts, and envelopes manager with fiscal stewardship.",
+	"start_url": "/",
+	"scope": "/",
+	"display": "standalone",
+	"orientation": "portrait-primary",
+	"background_color": "#F3F5F5",
+	"theme_color": "#0E3530",
+	"categories": ["finance", "productivity", "utilities"],
+	"icons": [
+		{
+			"src": "/pwa-192x192.png",
+			"sizes": "192x192",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "/pwa-512x512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "/pwa-maskable-512x512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "maskable"
+		}
+	]
+}

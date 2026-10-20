@@ -2,12 +2,28 @@
 @plugin '@tailwindcss/forms';
 
 @theme {
-    --font-sans: 'Plus Jakarta Sans Variable', Roboto, sans-serif;
-    --font-mono: 'JetBrains Mono Variable', Consolas, monospace;
+	/* Fonts */
+	--font-sans: 'Plus Jakarta Sans Variable', Roboto, sans-serif;
+	--font-mono: 'JetBrains Mono Variable', Consolas, monospace;
+
+	/* Brand Palette (#0E3530 Base) */
+	--color-brand-50: #f3f5f5;
+	--color-brand-100: #e7ebea;
+	--color-brand-200: #c3cdcb;
+	--color-brand-300: #9faeac;
+	--color-brand-400: #56726e;
+	--color-brand-500: #0e3530;
+	--color-brand-600: #0d302b;
+	--color-brand-700: #08201d;
+	--color-brand-800: #061816;
+	--color-brand-900: #04100e;
+
+	/* Destructive Token */
+	--color-destructive: #6b1d2f;
 }
 
 @layer base {
-    body {
-        font-family: var(--font-sans);
-    }
+	body {
+		font-family: var(--font-sans);
+	}
 }

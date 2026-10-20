@@ -118,6 +118,22 @@ def get_account_by_name(session: Session, account_name: str) -> Account | None:
     return ret_account
 
 
+def get_cash_account(session: Session) -> Account | None:
+    """Fetches the single Cash account, if it exists.
+
+    Args:
+        session: Active SQLModel database session.
+
+    Returns:
+        The matching Cash Account instance if found, otherwise None.
+    """
+    stmt = select(Account).where(Account.account_type == AccountType.CASH)
+    ret_account = session.exec(stmt).first()
+    if ret_account:
+        ret_account.current_balance = get_balance_for_account(session, ret_account)
+    return ret_account
+
+
 def get_account_by_id(session: Session, account_id: int) -> Account | None:
     """Fetches an account by its primary key ID, attaching its derived balance.
 

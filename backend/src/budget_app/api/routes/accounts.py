@@ -19,7 +19,7 @@ def create_account(account: AccountCreate, session: Session = Depends(get_sessio
 
 # get all accounts
 @router.get("/", response_model=List[AccountResponse], status_code=status.HTTP_200_OK)
-def get_accounts(is_active: bool | None = True, session: Session = Depends(get_session)):
+def get_accounts(is_active: bool | None = None, session: Session = Depends(get_session)):
     return account_service.get_all_accounts(session, is_active=is_active)
 
 #get account by name
@@ -35,16 +35,17 @@ def get_account(name: str, session: Session = Depends(get_session)):
     return ret_account
 
 # update account metadata
-@router.patch("/{name}", response_model=AccountResponse, status_code=status.HTTP_200_OK)
+@router.patch("/{account_id}", response_model=AccountResponse, status_code=status.HTTP_200_OK)
 def update_account(
+    account_id: int,
     account_info: AccountUpdate, 
-    name: str, 
     session: Session = Depends(get_session)
 ):
     try:
-        return account_service.update_account(session, name, account_info)
+        return account_service.update_account(session, account_id, account_info)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        status_code = status.HTTP_404_NOT_FOUND if "does not exist" in str(e) else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 # archive account
 @router.delete("/{name}", response_model=AccountResponse, status_code=status.HTTP_200_OK)

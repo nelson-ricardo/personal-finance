@@ -50,9 +50,11 @@ class AccountBase(SQLModel):
         sa_column=Column(Numeric(precision=14, scale=2)),
         description="Minimum or scheduled monthly payment amount",
     )
-    due_date: Optional[date] = Field(
+    due_date: Optional[int] = Field(
         default=None,
-        description="Next payment due date",
+        ge=1,
+        le=31,
+        description="Day of the month the payment is due (1-31)",
     )
     is_active: bool = Field(
         default=True,
@@ -68,7 +70,12 @@ class AccountUpdate(SQLModel):
     total_statement_balance: Optional[Decimal] = Field(default=None)
     interest_saving_balance: Optional[Decimal] = Field(default=None)
     monthly_payment: Optional[Decimal] = Field(default=None)
-    due_date: Optional[date] = Field(default=None)
+    due_date: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=31,
+        description="Day of the month the payment is due (1-31)",
+    )
 
 
 class AccountCreate(AccountBase):

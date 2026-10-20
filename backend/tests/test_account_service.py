@@ -1,6 +1,6 @@
 from decimal import Decimal
 import pytest
-from budget_app.repositories import envelope_repo
+from budget_app.repositories import account_repo, envelope_repo
 from budget_app.schemas import (
     AccountBase,
     AccountCreate,
@@ -15,40 +15,49 @@ from budget_app.services import account_service, envelope_service, transaction_s
 
 
 class TestCreateAccount:
-    def test_create_account_success(self, session):
+    def test_create_credit_card_account_success(self, session):
         acc_info = AccountCreate(
-            name="Savings",
-            account_type=AccountType.CASH,
+            name="Savings Card",
+            account_type=AccountType.CREDIT_CARD,
             current_balance=Decimal("500"),
         )
         account = account_service.create_account(session, acc_info)
 
         assert account is not None
         assert account.id is not None
-        assert account.name == "Savings"
-        assert account.account_type == AccountType.CASH
+        assert account.name == "Savings Card"
+        assert account.account_type == AccountType.CREDIT_CARD
         assert account.current_balance == Decimal("500")
+
+    def test_create_second_cash_account_raises_error(self, session):
+        acc_info = AccountCreate(
+            name="Checking",
+            account_type=AccountType.CASH,
+            current_balance=Decimal("500"),
+        )
+        with pytest.raises(ValueError, match="Only a single cash account is allowed"):
+            account_service.create_account(session, acc_info)
 
     def test_create_account_empty_name_raises_error(self, session):
         acc_info = AccountBase(
             name="   ",
-            account_type=AccountType.CASH,
+            account_type=AccountType.CREDIT_CARD,
         )
         with pytest.raises(ValueError, match="Account name cannot be empty"):
             account_service.create_account(session, acc_info)
 
     def test_create_account_duplicate_name_raises_error(self, session):
         acc_info = AccountBase(
-            name="Checking",
-            account_type=AccountType.CASH,
+            name="MyCard",
+            account_type=AccountType.CREDIT_CARD,
         )
         account_service.create_account(session, acc_info)
 
         duplicate = AccountBase(
-            name="Checking",
-            account_type=AccountType.CASH,
+            name="MyCard",
+            account_type=AccountType.CREDIT_CARD,
         )
-        with pytest.raises(ValueError, match="Account 'Checking' already exists"):
+        with pytest.raises(ValueError, match="Account 'MyCard' already exists"):
             account_service.create_account(session, duplicate)
 
     def test_create_cash_account_negative_balance_raises_error(self, session):
@@ -61,16 +70,23 @@ class TestCreateAccount:
             account_service.create_account(session, acc_info)
 
     def test_create_cash_account_clears_credit_fields(self, session):
+        seeded_cash = account_repo.get_account_by_name(session, "Cash")
+        if seeded_cash:
+            session.delete(seeded_cash)
+            session.flush()
+
         acc_info = AccountCreate(
-            name="CashWithCreditFields",
+            name="Cash",
             account_type=AccountType.CASH,
             current_balance=Decimal("200"),
             total_statement_balance=Decimal("100"),
             monthly_payment=Decimal("50"),
+            due_date=15,
         )
         account = account_service.create_account(session, acc_info)
         assert account.total_statement_balance is None
         assert account.monthly_payment is None
+        assert account.due_date is None
 
     def test_create_credit_card_auto_links_envelope(self, session):
         acc_info = AccountCreate(
@@ -93,15 +109,47 @@ class TestCreateAccount:
         with pytest.raises(ValueError, match="Balance cannot be negative"):
             account_service.create_account(session, acc_info)
 
+    def test_create_credit_card_with_due_date_success(self, session):
+        acc_info = AccountCreate(
+            name="Discover",
+            account_type=AccountType.CREDIT_CARD,
+            due_date=25,
+        )
+        account = account_service.create_account(session, acc_info)
+        assert account.due_date == 25
+        fetched = account_service.get_account(session, "Discover")
+        assert fetched.due_date == 25
+
+    def test_create_account_due_date_out_of_bounds_raises_error(self, session):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            AccountCreate(
+                name="BadDueDateLow",
+                account_type=AccountType.CREDIT_CARD,
+                due_date=0,
+            )
+        with pytest.raises(ValidationError):
+            AccountCreate(
+                name="BadDueDateHigh",
+                account_type=AccountType.CREDIT_CARD,
+                due_date=32,
+            )
+
 
 class TestStartingBalanceAndDerivedBalance:
     def test_cash_starting_balance_creates_income_transaction(self, session):
+        seeded_cash = account_repo.get_account_by_name(session, "Cash")
+        if seeded_cash:
+            session.delete(seeded_cash)
+            session.flush()
+
         acc = account_service.create_account(
             session,
-            AccountCreate(name="Chase Checking", account_type=AccountType.CASH, current_balance=Decimal("1500")),
+            AccountCreate(name="Cash", account_type=AccountType.CASH, current_balance=Decimal("1500")),
         )
         assert acc.current_balance == Decimal("1500")
-        assert account_service.get_account_balance(session, "Chase Checking") == Decimal("1500")
+        assert account_service.get_account_balance(session, "Cash") == Decimal("1500")
 
         # Unassigned envelope should have received the funds
         unassigned = envelope_repo.get_envelope_by_name(session, "Unassigned")
@@ -124,7 +172,7 @@ class TestStartingBalanceAndDerivedBalance:
     def test_get_all_accounts_returns_derived_balances(self, session):
         account_service.create_account(
             session,
-            AccountCreate(name="Bank A", account_type=AccountType.CASH, current_balance=Decimal("300")),
+            AccountCreate(name="Card A", account_type=AccountType.CREDIT_CARD, current_balance=Decimal("300")),
         )
         account_service.create_account(
             session,
@@ -132,8 +180,9 @@ class TestStartingBalanceAndDerivedBalance:
         )
         all_accs = account_service.get_all_accounts(session)
         acc_dict = {a.name: a.current_balance for a in all_accs}
-        assert acc_dict["Bank A"] == Decimal("300")
+        assert acc_dict["Card A"] == Decimal("300")
         assert acc_dict["Card B"] == Decimal("200")
+        assert "Cash" in acc_dict
 
 
 class TestInterestAdjustments:
@@ -158,11 +207,8 @@ class TestInterestAdjustments:
         assert card.current_balance == Decimal("515.50")
 
     def test_add_interest_charge_on_cash_raises_error(self, session):
-        account_service.create_account(
-            session, AccountBase(name="MyCash", account_type=AccountType.CASH)
-        )
         with pytest.raises(ValueError, match="Interest charges can only be applied to debt accounts"):
-            account_service.add_interest_charge(session, "MyCash", Decimal("10.00"))
+            account_service.add_interest_charge(session, "Cash", Decimal("10.00"))
 
     def test_add_interest_charge_negative_amount_raises_error(self, session):
         account_service.create_account(
@@ -176,18 +222,16 @@ class TestInterestAdjustments:
             account_service.add_interest_charge(session, "GhostBank", Decimal("20.00"))
 
     def test_add_interest_earned_cash(self, session):
-        savings = account_service.create_account(
-            session,
-            AccountCreate(name="High Yield Savings", account_type=AccountType.CASH, current_balance=Decimal("1000")),
-        )
-        assert savings.current_balance == Decimal("1000")
+        cash = account_repo.get_account_by_name(session, "Cash")
+        assert cash is not None
+        cash_bal_before = cash.current_balance
 
         unassigned = envelope_repo.get_envelope_by_name(session, "Unassigned")
         assert unassigned is not None
         unassigned_bal_before = envelope_repo.get_balance_for_envelope(session, unassigned)
 
         tx = account_service.add_interest_earned(
-            session, account_name="High Yield Savings", amount=Decimal("4.25"), note="APY payout"
+            session, account_name="Cash", amount=Decimal("4.25"), note="APY payout"
         )
         assert tx is not None
         assert tx.transaction_type == "INTEREST_EARNED"
@@ -196,8 +240,7 @@ class TestInterestAdjustments:
         assert tx.splits[0].envelope.name == "Unassigned"
 
         # Derived cash balance should increase by $4.25
-        assert account_service.get_account_balance(session, "High Yield Savings") == Decimal("1004.25")
-        assert savings.current_balance == Decimal("1004.25")
+        assert account_service.get_account_balance(session, "Cash") == cash_bal_before + Decimal("4.25")
 
         # Unassigned envelope should have also increased by $4.25
         unassigned_bal_after = envelope_repo.get_balance_for_envelope(session, unassigned)
@@ -211,33 +254,30 @@ class TestInterestAdjustments:
             account_service.add_interest_earned(session, "DebtCard", Decimal("10.00"))
 
     def test_add_interest_earned_negative_amount_raises_error(self, session):
-        account_service.create_account(
-            session, AccountBase(name="CheckingAcct", account_type=AccountType.CASH)
-        )
         with pytest.raises(ValueError, match="Interest earned amount must be greater than 0"):
-            account_service.add_interest_earned(session, "CheckingAcct", Decimal("-1.00"))
+            account_service.add_interest_earned(session, "Cash", Decimal("-1.00"))
 
 
 class TestAccountLifecycleAndFiltering:
     def test_delete_account_no_transactions_success(self, session):
         account_service.create_account(
             session,
-            AccountBase(name="OldChecking", account_type=AccountType.CASH),
+            AccountBase(name="OldCard", account_type=AccountType.CREDIT_CARD),
         )
-        deleted = account_service.delete_account(session, "OldChecking")
+        deleted = account_service.delete_account(session, "OldCard")
         assert deleted.is_active is False
 
         # By default, get_all_accounts filters for active accounts only
         active_accounts = account_service.get_all_accounts(session)
-        assert "OldChecking" not in [a.name for a in active_accounts]
+        assert "OldCard" not in [a.name for a in active_accounts]
 
         # Explicitly fetching inactive accounts
         inactive_accounts = account_service.get_all_accounts(session, is_active=False)
-        assert "OldChecking" in [a.name for a in inactive_accounts]
+        assert "OldCard" in [a.name for a in inactive_accounts]
 
         # Fetching all accounts regardless of active status
         all_accounts = account_service.get_all_accounts(session, is_active=None)
-        assert "OldChecking" in [a.name for a in all_accounts]
+        assert "OldCard" in [a.name for a in all_accounts]
 
     def test_delete_account_with_starting_balance_success(self, session):
         account_service.create_account(
@@ -305,34 +345,48 @@ class TestAccountLifecycleAndFiltering:
     def test_activate_account(self, session):
         account_service.create_account(
             session,
-            AccountBase(name="DormantChecking", account_type=AccountType.CASH),
+            AccountBase(name="DormantCard", account_type=AccountType.CREDIT_CARD),
         )
-        account_service.delete_account(session, "DormantChecking")
+        account_service.delete_account(session, "DormantCard")
         dormant = account_service.get_account(
-            session, "DormantChecking", is_active=True
+            session, "DormantCard", is_active=True
         )
         assert dormant is None
 
-        reactivated = account_service.activate_account(session, "DormantChecking")
+        reactivated = account_service.activate_account(session, "DormantCard")
         assert reactivated.is_active is True
         active_dormant = account_service.get_account(
-            session, "DormantChecking", is_active=True
+            session, "DormantCard", is_active=True
         )
         assert active_dormant is not None
 
     def test_update_account_name(self, session):
         account_service.create_account(
             session,
-            AccountBase(name="OldName", account_type=AccountType.CASH),
+            AccountBase(name="OldCardName", account_type=AccountType.CREDIT_CARD),
         )
         updated = account_service.update_account(
             session,
-            target_name="OldName",
-            account_info=AccountUpdate(name="NewName"),
+            target_name="OldCardName",
+            account_info=AccountUpdate(name="NewCardName"),
         )
-        assert updated.name == "NewName"
-        assert account_service.get_account(session, "NewName") is not None
-        assert account_service.get_account(session, "OldName") is None
+        assert updated.name == "NewCardName"
+        assert account_service.get_account(session, "NewCardName") is not None
+        assert account_service.get_account(session, "OldCardName") is None
+
+    def test_update_account_by_id_success(self, session):
+        created = account_service.create_account(
+            session,
+            AccountBase(name="CardById", account_type=AccountType.CREDIT_CARD),
+        )
+        updated = account_service.update_account(
+            session,
+            target=created.id,
+            account_info=AccountUpdate(name="CardByIdRenamed", monthly_payment=Decimal("50.00")),
+        )
+        assert updated.id == created.id
+        assert updated.name == "CardByIdRenamed"
+        assert updated.monthly_payment == Decimal("50.00")
 
     def test_update_account_rename_cash_raises_error(self, session):
         with pytest.raises(
@@ -347,16 +401,16 @@ class TestAccountLifecycleAndFiltering:
     def test_update_account_deactivate_via_is_active_flag(self, session):
         account_service.create_account(
             session,
-            AccountBase(name="FlagTest", account_type=AccountType.CASH),
+            AccountBase(name="FlagTestCard", account_type=AccountType.CREDIT_CARD),
         )
         updated = account_service.update_account(
             session,
-            target_name="FlagTest",
+            target_name="FlagTestCard",
             account_info=AccountUpdate(is_active=False),
         )
         assert updated.is_active is False
         active_names = [a.name for a in account_service.get_all_accounts(session)]
-        assert "FlagTest" not in active_names
+        assert "FlagTestCard" not in active_names
 
 
 class TestMakePayment:
@@ -484,15 +538,11 @@ class TestMakePayment:
             )
 
     def test_make_payment_to_cash_account_raises_error(self, session):
-        account_service.create_account(
-            session,
-            AccountBase(name="Checking", account_type=AccountType.CASH),
-        )
         with pytest.raises(
             ValueError, match="is not a loan or credit card"
         ):
             account_service.make_payment(
-                session, target="Checking", amount=Decimal("50.00")
+                session, target="Cash", amount=Decimal("50.00")
             )
 
     def test_make_payment_negative_amount_raises_error(self, session):

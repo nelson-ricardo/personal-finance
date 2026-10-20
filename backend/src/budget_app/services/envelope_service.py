@@ -125,14 +125,14 @@ def add_to_cash(
         envelope_id=unassigned_envelope.id,
         envelope_name=unassigned_envelope.name,
     )
-    date_kwargs = {"logged_date": logged_date} if logged_date is not None else {}
+    tx_date = logged_date or date.today()
     master_tx_req: TransactionRequest = TransactionRequest(
         merchant=source,
         note=note,
         payment_method_name="Cash",
         transaction_type=TransactionType.INCOME,
         splits=[entry],
-        **date_kwargs,
+        logged_date=tx_date,
     )
 
     master_transaction: Transaction = transaction_repo.create_transaction(
@@ -218,13 +218,13 @@ def transfer_between_envelopes(
         amount=amount, envelope_name=destination
     )
 
-    date_kwargs = {"logged_date": logged_date} if logged_date is not None else {}
+    tx_date = logged_date or date.today()
     transaction_request = TransactionRequest(
         merchant=f"transfer {source} -> {destination}",
         payment_method_name="Cash",
         transaction_type=TransactionType.TRANSFER,
         splits=[split_entry_src, split_entry_dest],
-        **date_kwargs,
+        logged_date=tx_date,
     )
 
     master_transaction: Transaction = transaction_repo.create_transaction(

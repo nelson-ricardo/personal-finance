@@ -64,7 +64,7 @@ def transaction_set_up(session):
         note="Testing purposes only",
         payment_method_name="Cash",
         transaction_type=TransactionType.INCOME,
-        ledger_entries=[env1_addition, env2_addition],
+        splits=[env1_addition, env2_addition],
     )
     master_tx = transaction_repo.create_transaction(session, tx)
     session.flush()
@@ -82,7 +82,7 @@ class TestAddRegTransaction:
             merchant="Groceries",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[ledger_entry],
+            splits=[ledger_entry],
         )
         test_transaction: Transaction = transaction_service.add_reg_transaction(
             session, tx_req
@@ -106,7 +106,7 @@ class TestAddRegTransaction:
             merchant="Target",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry1, entry2],
+            splits=[entry1, entry2],
         )
 
         test_transaction = transaction_service.add_reg_transaction(session, tx_req)
@@ -129,7 +129,7 @@ class TestAddRegTransaction:
             merchant="Supermarket",
             payment_method_name="Visa",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
 
         test_transaction = transaction_service.add_reg_transaction(session, tx_req)
@@ -149,7 +149,7 @@ class TestAddRegTransaction:
             merchant="Department Store",
             payment_method_name="Visa",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry1, entry2],
+            splits=[entry1, entry2],
         )
 
         test_transaction = transaction_service.add_reg_transaction(session, tx_req)
@@ -165,7 +165,7 @@ class TestAddRegTransaction:
             merchant="Unknown",
             payment_method_name="NonExistentAccount",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
 
         with pytest.raises(ValueError):
@@ -179,7 +179,7 @@ class TestAddRegTransaction:
             merchant="Store",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
 
         with pytest.raises(ValueError):
@@ -191,7 +191,7 @@ class TestAddRegTransaction:
             merchant="Store",
             payment_method_name="Cash",
             transaction_type=TransactionType.FINANCED,
-            ledger_entries=[entry],
+            splits=[entry],
         )
 
         with pytest.raises(
@@ -318,13 +318,13 @@ class TestAddFinancedTransaction:
             transaction_service.add_financed_transaction(session, financed_tx)
 
     def test_non_credit_card_raises_error(self, session):
-        get_or_create_account(session, "CashAccount", AccountType.CASH)
+        get_or_create_account(session, "Cash", AccountType.CASH)
         financed_tx = FinancedTransaction(
             merchant="Store",
             term=12,
             amount=Decimal("500"),
             envelope_name=None,
-            payment_method_name="CashAccount",
+            payment_method_name="Cash",
         )
 
         with pytest.raises(ValueError, match="Account type has to be credit card"):
@@ -445,7 +445,7 @@ class TestGetTransactions:
             logged_date=date(current_year, current_month, 10),
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[
+            splits=[
                 LedgerRequest(amount=Decimal("-20"), envelope_name="Fun"),
                 LedgerRequest(amount=Decimal("-20"), envelope_name="Groceries"),
             ],
@@ -459,7 +459,7 @@ class TestGetTransactions:
             logged_date=date(current_year, current_month, 15),
             payment_method_name="Visa",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[
+            splits=[
                 LedgerRequest(amount=Decimal("-30"), envelope_name="Groceries"),
                 LedgerRequest(amount=Decimal("-70"), envelope_name="Fun"),
             ],
@@ -504,7 +504,7 @@ class TestGetTransactions:
             logged_date=date(current_year, current_month, 1),
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[LedgerRequest(amount=Decimal("-5"), envelope_name="Fun")],
+            splits=[LedgerRequest(amount=Decimal("-5"), envelope_name="Fun")],
         )
         early_tx = transaction_service.add_reg_transaction(session, early_req)
 
@@ -514,7 +514,7 @@ class TestGetTransactions:
             logged_date=date(current_year, current_month, 29),
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[LedgerRequest(amount=Decimal("-45"), envelope_name="Fun")],
+            splits=[LedgerRequest(amount=Decimal("-45"), envelope_name="Fun")],
         )
         late_tx = transaction_service.add_reg_transaction(session, late_req)
 
@@ -722,14 +722,12 @@ class TestGetTransactions:
         dates = [tx.logged_date for tx in results]
         assert dates == sorted(dates, reverse=True)
 
-    def test_camel_case_transaction_type(self, session, populated_db):
-        """Passing transactionType keyword argument works."""
-        results = transaction_service.get_transactions(
-            session, transactionType=TransactionType.FINANCED
-        )
-        assert len(results) == 1
-        assert results[0].merchant == "Apple Store"
-        assert results[0].transaction_type == TransactionType.FINANCED
+    def test_unknown_kwarg_raises_type_error(self, session, populated_db):
+        """Passing legacy or unsupported kwargs raises TypeError."""
+        with pytest.raises(TypeError):
+            transaction_service.get_transactions(
+                session, transactionType=TransactionType.FINANCED  # type: ignore
+            )
 
     def test_envelope_and_account_filtering(self, session, populated_db):
         """Filtering with both envelope and account string names simultaneously."""
@@ -765,7 +763,7 @@ class TestDeleteTransaction:
             merchant="Trader Joe's",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[
+            splits=[
                 LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
             ],
         )
@@ -818,7 +816,7 @@ class TestDeleteTransaction:
             merchant="Chipotle",
             payment_method_name="Visa",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[
+            splits=[
                 LedgerRequest(amount=Decimal("-60"), envelope_name="Dining")
             ],
         )
@@ -906,7 +904,7 @@ class TestDeleteTransaction:
             merchant="Market",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[
+            splits=[
                 LedgerRequest(amount=Decimal("-40"), envelope_name="Groceries")
             ],
         )
@@ -943,7 +941,7 @@ class TestDeleteTransaction:
             merchant="Costco",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[
+            splits=[
                 LedgerRequest(amount=Decimal("-50"), envelope_name="Groceries")
             ],
         )
@@ -996,7 +994,7 @@ class TestGetTransactionById:
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
             note="Weekly split shopping",
-            ledger_entries=[
+            splits=[
                 LedgerRequest(amount=Decimal("-30"), envelope_name="Groceries"),
                 LedgerRequest(amount=Decimal("-20"), envelope_name="Fun"),
             ],
@@ -1018,15 +1016,14 @@ class TestGetTransactionById:
         assert detail.total_amount == Decimal("50")
 
         # Verify child ledger entries
-        assert len(detail.entries) == 2
-        assert len(detail.ledger_entries) == 2
+        assert len(detail.splits) == 2
 
-        entry_map = {e.envelope_name: e.amount for e in detail.entries}
+        entry_map = {e.envelope_name: e.amount for e in detail.splits}
         assert entry_map["Groceries"] == Decimal("-30")
         assert entry_map["Fun"] == Decimal("-20")
 
         # Verify envelope IDs
-        for e in detail.entries:
+        for e in detail.splits:
             if e.envelope_name == "Groceries":
                 assert e.envelope_id == groceries.id
             elif e.envelope_name == "Fun":
@@ -1046,7 +1043,7 @@ class TestGetTransactionById:
             merchant="Olive Garden",
             payment_method_name="Visa",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[
+            splits=[
                 LedgerRequest(amount=Decimal("-75"), envelope_name="Dining")
             ],
         )
@@ -1059,8 +1056,8 @@ class TestGetTransactionById:
         assert detail.payment_method_name == "Visa"
         assert detail.total == Decimal("75")
         # Contains Dining (-75) and Credit Card Payment (+75)
-        assert len(detail.entries) == 2
-        entry_map = {e.envelope_name: e.amount for e in detail.entries}
+        assert len(detail.splits) == 2
+        entry_map = {e.envelope_name: e.amount for e in detail.splits}
         assert entry_map["Dining"] == Decimal("-75")
         assert entry_map["Credit Card Payment"] == Decimal("75")
 
@@ -1086,8 +1083,8 @@ class TestGetTransactionById:
         assert detail.merchant == "Best Buy"
         assert detail.transaction_type == TransactionType.FINANCED
         assert detail.total == Decimal("600")
-        assert len(detail.entries) == 2
-        amounts = {e.amount for e in detail.entries}
+        assert len(detail.splits) == 2
+        amounts = {e.amount for e in detail.splits}
         assert Decimal("600") in amounts
         assert Decimal("-600") in amounts
 
@@ -1104,7 +1101,7 @@ class TestGetTransactionById:
 
         assert res1.id == res2.id == res3.id
         assert res1.merchant == res2.merchant == res3.merchant
-        assert len(res1.entries) == len(res2.entries) == len(res3.entries)
+        assert len(res1.splits) == len(res2.splits) == len(res3.splits)
 
     def test_get_nonexistent_transaction_by_id_raises_error(self, session):
         with pytest.raises(
@@ -1121,7 +1118,7 @@ class TestUpdateTransaction:
             merchant="Safeway",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
         assert cash_account.current_balance == Decimal("950")
@@ -1153,7 +1150,7 @@ class TestUpdateTransaction:
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
             is_reconciled=True,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
         assert tx.is_reconciled is True
@@ -1177,12 +1174,12 @@ class TestUpdateTransaction:
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
             is_reconciled=True,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
         new_entry = LedgerRequest(amount=Decimal("-60"), envelope_name="Groceries")
-        update_req = TransactionUpdateRequest(ledger_entries=[new_entry])
+        update_req = TransactionUpdateRequest(splits=[new_entry])
 
         assert tx.id is not None
         with pytest.raises(
@@ -1200,7 +1197,7 @@ class TestUpdateTransaction:
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
             is_reconciled=True,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
@@ -1219,14 +1216,14 @@ class TestUpdateTransaction:
             merchant="Costco",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
         assert cash_account.current_balance == Decimal("950")
 
         # Update expense from $50 to $80
         new_entry = LedgerRequest(amount=Decimal("-80"), envelope_name="Groceries")
-        update_req = TransactionUpdateRequest(ledger_entries=[new_entry])
+        update_req = TransactionUpdateRequest(splits=[new_entry])
         assert tx.id is not None
         updated_tx = transaction_service.update_transaction(session, tx.id, update_req)
 
@@ -1244,7 +1241,7 @@ class TestUpdateTransaction:
             merchant="Cinema",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
@@ -1263,7 +1260,7 @@ class TestUpdateTransaction:
 
         # Update category from Groceries to Fun
         new_entry = LedgerRequest(amount=Decimal("-50"), envelope_name="Fun")
-        update_req = TransactionUpdateRequest(ledger_entries=[new_entry])
+        update_req = TransactionUpdateRequest(splits=[new_entry])
         assert tx.id is not None
         transaction_service.update_transaction(session, tx.id, update_req)
 
@@ -1288,7 +1285,7 @@ class TestUpdateTransaction:
             merchant="Supermarket",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
@@ -1324,7 +1321,7 @@ class TestUpdateTransaction:
             merchant="Whole Foods",
             payment_method_name="Visa",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
@@ -1357,7 +1354,7 @@ class TestUpdateTransaction:
             merchant="Target",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
@@ -1365,7 +1362,7 @@ class TestUpdateTransaction:
         update_req = TransactionUpdateRequest(
             merchant="Target Superstore",
             payment_method_name="Visa",
-            ledger_entries=[
+            splits=[
                 LedgerRequest(amount=Decimal("-30"), envelope_name="Groceries"),
                 LedgerRequest(amount=Decimal("-20"), envelope_name="Fun"),
             ],
@@ -1410,7 +1407,7 @@ class TestUpdateTransaction:
             merchant="Store",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
         assert tx.id is not None
@@ -1435,7 +1432,7 @@ class TestUpdateTransaction:
             merchant="Store",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
@@ -1452,11 +1449,11 @@ class TestUpdateTransaction:
             merchant="Store",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
-        update_req = TransactionUpdateRequest(ledger_entries=[])
+        update_req = TransactionUpdateRequest(splits=[])
         assert tx.id is not None
         with pytest.raises(
             ValueError, match="Transaction must have at least one (?:envelope split|ledger entry)"
@@ -1471,7 +1468,7 @@ class TestUpdateTransaction:
             merchant="Store",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
@@ -1488,12 +1485,12 @@ class TestUpdateTransaction:
             merchant="Store",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
         alien_entry = LedgerRequest(amount=Decimal("-50"), envelope_name="AlienBudget")
-        update_req = TransactionUpdateRequest(ledger_entries=[alien_entry])
+        update_req = TransactionUpdateRequest(splits=[alien_entry])
         assert tx.id is not None
         with pytest.raises(ValueError, match="Envelope AlienBudget does not exist"):
             transaction_service.update_transaction(session, tx.id, update_req)
@@ -1504,7 +1501,7 @@ class TestUpdateTransaction:
             merchant="Store",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         tx = transaction_service.add_reg_transaction(session, tx_req)
 
@@ -1716,7 +1713,7 @@ class TestUpdateFinancedTransaction:
             merchant="Grocery Store",
             payment_method_name="Cash",
             transaction_type=TransactionType.EXPENSE,
-            ledger_entries=[entry],
+            splits=[entry],
         )
         reg_tx = transaction_service.add_reg_transaction(session, tx_req)
 
@@ -1846,8 +1843,6 @@ class TestEnvelopeSplitUbiquitousLanguage:
         detail = transaction_service.get_transaction_by_id(session, tx.id)
         assert isinstance(detail, TransactionDetailResponse)
         assert len(detail.splits) == 2
-        assert len(detail.entries) == 2  # Alias
-        assert len(detail.ledger_entries) == 2  # Alias
         assert all(isinstance(s, EnvelopeSplitResponse) for s in detail.splits)
         assert detail.total == Decimal("50.00")
 

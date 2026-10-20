@@ -70,10 +70,18 @@ def create_account(
         or Decimal("0.00")
     )
 
-    # 3. Apply account-type specific validation and sanitize irrelevant fields
+    # 3. Apply account-type specific validation and enforce single Cash account rule
     if acc_info.account_type == AccountType.CASH:
         if initial_balance < Decimal("0"):
             raise ValueError("Cash account balance cannot be negative")
+        existing_cash = account_repo.get_cash_account(session)
+        if existing_cash:
+            raise ValueError(
+                f"A cash account ('{existing_cash.name}') already exists. "
+                "Only a single cash account is allowed."
+            )
+        if cleaned_name != "Cash":
+            raise ValueError("The single cash account must be named 'Cash'")
         # Cash accounts do not have statement balances, interest, or due dates
         acc_info.total_statement_balance = None
         acc_info.interest_saving_balance = None
@@ -125,7 +133,7 @@ def create_account(
     session.refresh(new_account)
 
     # 6. If initial balance > 0, post a Starting Balance transaction
-    date_kwargs = {"logged_date": logged_date} if logged_date is not None else {}
+    tx_date = logged_date or date.today()
     if initial_balance > Decimal("0.00"):
         if acc_info.account_type == AccountType.CASH:
             unassigned_env = (
@@ -150,7 +158,7 @@ def create_account(
                 payment_method_name=cleaned_name,
                 transaction_type=TransactionType.INCOME,
                 splits=[split],
-                **date_kwargs,
+                logged_date=tx_date,
             )
             transaction_repo.create_transaction(session, tx_req)
         elif acc_info.account_type in (AccountType.CREDIT_CARD, AccountType.LOAN):
@@ -176,7 +184,7 @@ def create_account(
                 payment_method_name=cleaned_name,
                 transaction_type=TransactionType.INTEREST_CHARGE,
                 splits=[split],
-                **date_kwargs,
+                logged_date=tx_date,
             )
             transaction_repo.create_transaction(session, tx_req)
 
@@ -472,14 +480,21 @@ def activate_account(session: Session, account_name: str) -> Account:
 
 
 def update_account(
-    session: Session, target_name: str, account_info: AccountUpdate
+    session: Session,
+    target: int | str | None = None,
+    account_info: AccountUpdate | None = None,
+    *,
+    target_name: str | None = None,
+    account_id: int | None = None,
 ) -> Account:
     """Updates account details (name, metadata, active status).
 
     Args:
         session: Active SQLModel database session.
-        target_name: Current name of the account to update.
+        target: Account primary key ID (int) or current name (str) of the account to update.
         account_info: AccountUpdate payload with optional new values.
+        target_name: Optional keyword alias for name-based lookup.
+        account_id: Optional keyword alias for ID-based lookup.
 
     Returns:
         The updated Account instance.
@@ -488,19 +503,32 @@ def update_account(
         ValueError: If target account does not exist, name collision occurs,
             or archiving rules are violated.
     """
-    if not target_name or not target_name.strip():
-        raise ValueError("Account name cannot be empty")
+    ident = target if target is not None else (account_id if account_id is not None else target_name)
+    if ident is None:
+        raise ValueError("Account ID or name must be provided")
 
-    target_name = target_name.strip()
-    account = account_repo.get_account_by_name(session, target_name)
-    if not account:
-        raise ValueError(f"Account '{target_name}' does not exist")
+    if isinstance(ident, int):
+        account = account_repo.get_account_by_id(session, ident)
+        if not account:
+            raise ValueError(f"Account with ID {ident} does not exist")
+    elif isinstance(ident, str):
+        cleaned_target = ident.strip()
+        if not cleaned_target:
+            raise ValueError("Account name cannot be empty")
+        account = account_repo.get_account_by_name(session, cleaned_target)
+        if not account:
+            raise ValueError(f"Account '{cleaned_target}' does not exist")
+    else:
+        raise ValueError("Invalid target account identifier")
+
+    if account_info is None:
+        return account
 
     if account_info.name is not None:
         new_name = account_info.name.strip()
         if not new_name:
             raise ValueError("Account name cannot be empty")
-        if target_name == "Cash" and new_name != "Cash":
+        if account.name == "Cash" and new_name != "Cash":
             raise ValueError("Cannot rename the default 'Cash' account")
         if new_name != account.name:
             existing = account_repo.get_account_by_name(session, new_name)
@@ -561,7 +589,7 @@ def make_payment(
         raise ValueError(f"Insufficient funds in envelope {envelope.name}: available {env_bal}, required {amount}")
 
     # create the credit card payment transaction
-    date_kwargs = {"logged_date": logged_date} if logged_date is not None else {}
+    tx_date = logged_date or date.today()
     tx_pay_req: TransactionRequest = TransactionRequest(
         merchant=target,
         note=f"payment for {target} account",
@@ -573,7 +601,7 @@ def make_payment(
                 envelope_name=envelope.name
             )
         ],
-        **date_kwargs,
+        logged_date=tx_date,
     )
 
     tx_bal_adj: TransactionRequest = TransactionRequest(
@@ -587,7 +615,7 @@ def make_payment(
                 envelope_name="Account Adjustment"
             )
         ],
-        **date_kwargs,
+        logged_date=tx_date,
     )
 
     tx_pay: Transaction = transaction_repo.create_transaction(session, tx_pay_req)

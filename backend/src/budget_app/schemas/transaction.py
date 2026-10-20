@@ -5,7 +5,6 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any, List, Optional
 
-from pydantic import model_validator
 from sqlmodel import Field, SQLModel
 
 from budget_app.schemas.envelope_split import (
@@ -50,27 +49,6 @@ class TransactionRequest(TransactionBase):
     splits: List[EnvelopeSplitRequest] = Field(
         default_factory=list, description="Envelope allocations and amounts"
     )
-    ledger_entries: Optional[List[EnvelopeSplitRequest]] = Field(
-        default=None, description="Backward-compatible alias for splits"
-    )
-    entries: Optional[List[EnvelopeSplitRequest]] = Field(
-        default=None, description="Backward-compatible alias for splits"
-    )
-
-    @model_validator(mode="before")
-    @classmethod
-    def handle_legacy_split_names(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            if "splits" not in data:
-                if "ledger_entries" in data:
-                    data["splits"] = data["ledger_entries"]
-                elif "entries" in data:
-                    data["splits"] = data["entries"]
-            if "ledger_entries" not in data and "splits" in data:
-                data["ledger_entries"] = data["splits"]
-            if "entries" not in data and "splits" in data:
-                data["entries"] = data["splits"]
-        return data
 
 
 class FinancedTransaction(TransactionBase):
@@ -121,27 +99,6 @@ class TransactionDetailResponse(TransactionResponse):
         description="List of envelope split entries with envelope and amount information",
     )
 
-    @model_validator(mode="before")
-    @classmethod
-    def handle_legacy_split_names(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            if "splits" not in data:
-                if "entries" in data:
-                    data["splits"] = data["entries"]
-                elif "ledger_entries" in data:
-                    data["splits"] = data["ledger_entries"]
-        return data
-
-    @property
-    def entries(self) -> List[EnvelopeSplitResponse]:
-        """Alias for splits."""
-        return self.splits
-
-    @property
-    def ledger_entries(self) -> List[EnvelopeSplitResponse]:
-        """Backward-compatible alias for splits."""
-        return self.splits
-
 
 class TransactionUpdateRequest(SQLModel):
     """Payload for modifying an existing transaction.
@@ -166,27 +123,6 @@ class TransactionUpdateRequest(SQLModel):
     splits: Optional[List[EnvelopeSplitRequest]] = Field(
         default=None, description="Updated envelope allocations and amounts"
     )
-    ledger_entries: Optional[List[EnvelopeSplitRequest]] = Field(
-        default=None, description="Backward-compatible alias for splits"
-    )
-    entries: Optional[List[EnvelopeSplitRequest]] = Field(
-        default=None, description="Backward-compatible alias for splits"
-    )
-
-    @model_validator(mode="before")
-    @classmethod
-    def handle_legacy_split_names(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            if "splits" not in data:
-                if "ledger_entries" in data:
-                    data["splits"] = data["ledger_entries"]
-                elif "entries" in data:
-                    data["splits"] = data["entries"]
-            if "ledger_entries" not in data and "splits" in data:
-                data["ledger_entries"] = data["splits"]
-            if "entries" not in data and "splits" in data:
-                data["entries"] = data["splits"]
-        return data
 
 
 
