@@ -87,7 +87,7 @@ def init_db(session: Session) -> None:
                 note="holds money allocated to pay off credit card balance",
                 system_role=SystemEnvelopeType.CREDIT_CARD_PAYMENT,
             ),
-            category_name="Fixed Monthly Expenses",
+            category_name=fixed_cat.name if fixed_cat else None,
         )
         print("Credit card payment envelope created.")
     else:

@@ -11,6 +11,7 @@ import {
 	assignEnvelopeSchema,
 	addIncomeSchema
 } from '#lib/schemas/envelope.ts';
+import { getApiBaseUrl } from '#lib/server/api.ts';
 import type { PageServerLoad, Actions } from './$types';
 import {
 	setError,
@@ -55,10 +56,11 @@ async function handleApiError(
 }
 
 export const load: PageServerLoad = async ({ fetch, url }) => {
+	const apiBase = getApiBaseUrl();
 	const showAll = url.searchParams.get('all') === 'true';
 	const endpoint = showAll
-		? 'http://127.0.0.1:8000/categories/with-envelopes'
-		: 'http://127.0.0.1:8000/categories/with-envelopes?is_active=true';
+		? `${apiBase}/categories/with-envelopes`
+		: `${apiBase}/categories/with-envelopes?is_active=true`;
 
 	const res = await fetch(endpoint);
 	if (!res.ok) {
@@ -110,7 +112,7 @@ export const actions: Actions = {
 		});
 		if (!form.valid) return fail(400, { createCategoryForm: form });
 
-		const res = await fetch('http://127.0.0.1:8000/categories/', {
+		const res = await fetch(`${getApiBaseUrl()}/categories/`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(form.data)
@@ -131,7 +133,7 @@ export const actions: Actions = {
 		if (!form.valid) return fail(400, { updateCategoryForm: form });
 
 		const res = await fetch(
-			`http://127.0.0.1:8000/categories/${encodeURIComponent(form.data.original_name)}`,
+			`${getApiBaseUrl()}/categories/${encodeURIComponent(form.data.original_name)}`,
 			{
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
@@ -155,7 +157,7 @@ export const actions: Actions = {
 		const name = formData.get('name') as string;
 		if (!name) return fail(400, { message: 'Category name is required' });
 
-		const res = await fetch(`http://127.0.0.1:8000/categories/${encodeURIComponent(name)}`, {
+		const res = await fetch(`${getApiBaseUrl()}/categories/${encodeURIComponent(name)}`, {
 			method: 'DELETE'
 		});
 		if (!res.ok) {
@@ -173,7 +175,7 @@ export const actions: Actions = {
 		});
 		if (!form.valid) return fail(400, { createEnvelopeForm: form });
 
-		const res = await fetch('http://127.0.0.1:8000/envelopes/', {
+		const res = await fetch(`${getApiBaseUrl()}/envelopes/`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(form.data)
@@ -194,7 +196,7 @@ export const actions: Actions = {
 		if (!form.valid) return fail(400, { updateEnvelopeForm: form });
 
 		const res = await fetch(
-			`http://127.0.0.1:8000/envelopes/${encodeURIComponent(form.data.original_name)}`,
+			`${getApiBaseUrl()}/envelopes/${encodeURIComponent(form.data.original_name)}`,
 			{
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
@@ -219,12 +221,9 @@ export const actions: Actions = {
 		const name = formData.get('name') as string;
 		if (!name) return fail(400, { message: 'Envelope name is required' });
 
-		const res = await fetch(
-			`http://127.0.0.1:8000/envelopes/${encodeURIComponent(name)}/deactivate`,
-			{
-				method: 'POST'
-			}
-		);
+		const res = await fetch(`${getApiBaseUrl()}/envelopes/${encodeURIComponent(name)}/deactivate`, {
+			method: 'POST'
+		});
 		if (!res.ok) {
 			const data = await res.json().catch(() => null);
 			return fail(res.status >= 400 && res.status < 600 ? res.status : 400, {
@@ -239,12 +238,9 @@ export const actions: Actions = {
 		const name = formData.get('name') as string;
 		if (!name) return fail(400, { message: 'Envelope name is required' });
 
-		const res = await fetch(
-			`http://127.0.0.1:8000/envelopes/${encodeURIComponent(name)}/activate`,
-			{
-				method: 'POST'
-			}
-		);
+		const res = await fetch(`${getApiBaseUrl()}/envelopes/${encodeURIComponent(name)}/activate`, {
+			method: 'POST'
+		});
 		if (!res.ok) {
 			const data = await res.json().catch(() => null);
 			return fail(res.status >= 400 && res.status < 600 ? res.status : 400, {
@@ -259,7 +255,7 @@ export const actions: Actions = {
 		const name = formData.get('name') as string;
 		if (!name) return fail(400, { message: 'Envelope name is required' });
 
-		const res = await fetch(`http://127.0.0.1:8000/envelopes/${encodeURIComponent(name)}`, {
+		const res = await fetch(`${getApiBaseUrl()}/envelopes/${encodeURIComponent(name)}`, {
 			method: 'DELETE'
 		});
 		if (!res.ok) {
@@ -277,7 +273,7 @@ export const actions: Actions = {
 		});
 		if (!form.valid) return fail(400, { transferForm: form });
 
-		const res = await fetch('http://127.0.0.1:8000/envelopes/transfer', {
+		const res = await fetch(`${getApiBaseUrl()}/envelopes/transfer`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
@@ -302,7 +298,7 @@ export const actions: Actions = {
 		});
 		if (!form.valid) return fail(400, { assignForm: form });
 
-		const res = await fetch('http://127.0.0.1:8000/envelopes/assign', {
+		const res = await fetch(`${getApiBaseUrl()}/envelopes/assign`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
@@ -326,7 +322,7 @@ export const actions: Actions = {
 		});
 		if (!form.valid) return fail(400, { incomeForm: form });
 
-		const res = await fetch('http://127.0.0.1:8000/envelopes/income', {
+		const res = await fetch(`${getApiBaseUrl()}/envelopes/income`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({

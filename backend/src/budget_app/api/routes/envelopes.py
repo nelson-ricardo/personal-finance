@@ -104,6 +104,19 @@ def add_income_to_cash(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
+@router.get("/id/{envelope_id}", response_model=EnvelopeWithBalance, status_code=status.HTTP_200_OK)
+def get_envelope_by_id(
+    envelope_id: int,
+    session: Session = Depends(get_session),
+):
+    try:
+        return envelope_service.get_single_envelope_by_id_w_balance(
+            session=session, envelope_id=envelope_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
 @router.get("/{name}", response_model=EnvelopeWithBalance, status_code=status.HTTP_200_OK)
 def get_envelope(
     name: str,

@@ -42,4 +42,35 @@ class Account(AccountBase, table=True):
     def current_balance(self, value: Decimal) -> None:
         self._current_balance = value
 
+    @property
+    def envelope_name(self) -> Optional[str]:
+        """Accessor for the linked payment envelope display name."""
+        if hasattr(self, "_envelope_name"):
+            return self._envelope_name
+        if self.envelope:
+            return self.envelope.name
+        return None
+
+    @envelope_name.setter
+    def envelope_name(self, value: Optional[str]) -> None:
+        self._envelope_name = value
+
+    @property
+    def envelope_balance(self) -> Optional[Decimal]:
+        """Derived balance accessor for the linked payment envelope."""
+        if hasattr(self, "_envelope_balance"):
+            return self._envelope_balance
+        from typing import cast
+        from sqlalchemy.orm import object_session
+        from sqlmodel import Session as SQLModelSession
+        sess = object_session(self)
+        if sess is not None and self.envelope is not None:
+            from budget_app.repositories import envelope_repo
+            return envelope_repo.get_balance_for_envelope(cast(SQLModelSession, sess), self.envelope)
+        return None
+
+    @envelope_balance.setter
+    def envelope_balance(self, value: Optional[Decimal]) -> None:
+        self._envelope_balance = value
+
 

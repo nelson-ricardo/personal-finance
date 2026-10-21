@@ -1,0 +1,8 @@
+node_modules
+.svelte-kit
+build
+.vscode
+.gemini
+*.log
+.DS_Store
+screenshot-*.png

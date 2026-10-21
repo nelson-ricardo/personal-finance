@@ -3,16 +3,31 @@
 	import type { Account } from '#lib/schemas/account.ts';
 	import type { ResolvedPathname } from '$app/types';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import AccountOverviewStats from '#lib/components/accounts/AccountOverviewStats.svelte';
 	import AccountCard from '#lib/components/accounts/AccountCard.svelte';
 	import AccountEmptyState from '#lib/components/accounts/AccountEmptyState.svelte';
 	import AddAccountModal from '#lib/components/accounts/AddAccountModal.svelte';
 	import EditAccountModal from '#lib/components/accounts/EditAccountModal.svelte';
+	import AccountOperationsModal, {
+		type OperationTab
+	} from '#lib/components/accounts/AccountOperationsModal.svelte';
 
 	let { data }: PageProps = $props();
 
 	let isAdding = $state(false);
 	let editingAccount = $state<Account | null>(null);
+
+	// Operations Modal state
+	let isOperationsOpen = $state(false);
+	let selectedOperationTab = $state<OperationTab>('payment');
+	let selectedOperationAccount = $state<string>('');
+
+	function openOperations(tab: OperationTab = 'payment', account?: Account) {
+		selectedOperationTab = tab;
+		selectedOperationAccount = account?.name || '';
+		isOperationsOpen = true;
+	}
 
 	const allAccountsUrl = `${resolve('/accounts')}?all=true` as unknown as ResolvedPathname;
 	const activeAccountsUrl = resolve('/accounts');
@@ -38,6 +53,28 @@
 </svelte:head>
 
 <div class="space-y-6 sm:space-y-8">
+	<!-- Flash Feedback Banners -->
+	{#if page.form?.accountActionError}
+		<div
+			class="p-3.5 rounded-xl bg-[#6b1d2f]/10 text-[#6b1d2f] border border-[#6b1d2f]/30 text-xs font-medium flex items-center justify-between shadow-2xs"
+		>
+			<div class="flex items-center gap-2">
+				<span>⚠️</span>
+				<span>{page.form.accountActionError}</span>
+			</div>
+		</div>
+	{/if}
+	{#if page.form?.message}
+		<div
+			class="p-3.5 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs font-medium flex items-center justify-between shadow-2xs"
+		>
+			<div class="flex items-center gap-2">
+				<span>✅</span>
+				<span>{page.form.message}</span>
+			</div>
+		</div>
+	{/if}
+
 	<!-- Page Header with Summary & Actions -->
 	<div
 		class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 pb-4 border-b border-brand-200"
@@ -67,6 +104,16 @@
 		</div>
 
 		<div class="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+			<!-- Operations Action Button (Single button handling all account transactions) -->
+			<button
+				type="button"
+				onclick={() => openOperations('payment')}
+				class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl border border-brand-300 bg-white text-brand-900 text-xs sm:text-sm font-semibold hover:bg-brand-50 hover:border-brand-400 shadow-2xs transition-all duration-150 cursor-pointer"
+			>
+				<span class="text-base leading-none">⚡</span>
+				<span>Account Actions</span>
+			</button>
+
 			{#if !data.showAll}
 				<a
 					href={allAccountsUrl}
@@ -136,14 +183,24 @@
 		{:else}
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
 				{#each accounts as account (account.id)}
-					<AccountCard {account} onedit={(acc: Account) => (editingAccount = acc)} />
+					<AccountCard
+						{account}
+						envelopes={data.envelopes}
+						onedit={(acc: Account) => (editingAccount = acc)}
+						onoperation={(tab, acc) => openOperations(tab, acc)}
+					/>
 				{/each}
 			</div>
 		{/if}
 	</section>
 
 	<!-- Add Account Modal with Scroll-Lock -->
-	<AddAccountModal open={isAdding} formData={data.createForm} onclose={() => (isAdding = false)} />
+	<AddAccountModal
+		open={isAdding}
+		formData={data.createForm}
+		categories={data.categories}
+		onclose={() => (isAdding = false)}
+	/>
 
 	<!-- Edit Account Modal with Scroll-Lock -->
 	<EditAccountModal
@@ -151,5 +208,20 @@
 		formData={data.updateForm}
 		account={editingAccount}
 		onclose={() => (editingAccount = null)}
+	/>
+
+	<!-- Account Operations Modal (Debt Payment, Balance Adjustment, Interest Charge, Interest Earned) -->
+	<AccountOperationsModal
+		open={isOperationsOpen}
+		initialTab={selectedOperationTab}
+		initialAccountName={selectedOperationAccount}
+		accounts={data.accounts}
+		categories={data.categories}
+		envelopes={data.envelopes}
+		paymentFormData={data.paymentForm}
+		adjustmentFormData={data.adjustmentForm}
+		interestChargeFormData={data.interestChargeForm}
+		interestEarnedFormData={data.interestEarnedForm}
+		onclose={() => (isOperationsOpen = false)}
 	/>
 </div>

@@ -59,12 +59,14 @@ class FinancedTransaction(TransactionBase):
         amount: Total principal amount financed.
         envelope_name: Optional custom envelope name (auto-generated if None).
         payment_method_name: Name of the credit card account used.
+        category_name: Optional category to assign the financed envelope to.
     """
 
     term: int = Field(description="Number of monthly payment terms")
     amount: Decimal = Field(description="Total financed purchase amount")
     envelope_name: str | None = Field(default=None, description="Optional custom name for the financing envelope")
     payment_method_name: str = Field(description="Name of the credit card account used")
+    category_name: str | None = Field(default=None, description="Optional category to assign the financed envelope to")
 
 
 class TransactionResponse(TransactionBase):

@@ -20,18 +20,21 @@ from sqlalchemy.engine import make_url
 
 BACKEND_DIR = Path(__file__).resolve().parent
 DEFAULT_DEV_DB_NAME = "budget_db_frontend"
-HOST = "127.0.0.1"
-PORT = 8000
+HOST = os.getenv("HOST", "127.0.0.1")
+PORT = int(os.getenv("PORT", "8000"))
 
 
 def resolve_dev_url() -> str:
-    """Live dev DB URL: ``.env.dev`` if present, else test credentials with a dev DB name."""
+    """Live dev DB URL: DATABASE_URL if set, else ``.env.dev``, else test credentials."""
+    env_url = os.getenv("DATABASE_URL")
+    if env_url:
+        return env_url
     dev_url = dotenv_values(BACKEND_DIR / ".env.dev").get("DATABASE_URL")
     if dev_url:
         return dev_url
     test_url = dotenv_values(BACKEND_DIR / ".env.test").get("DATABASE_URL")
     if not test_url:
-        sys.exit("Need DATABASE_URL in backend/.env.dev or backend/.env.test")
+        sys.exit("Need DATABASE_URL in environment, backend/.env.dev or backend/.env.test")
     return make_url(test_url).set(database=DEFAULT_DEV_DB_NAME).render_as_string(
         hide_password=False
     )
@@ -98,16 +101,53 @@ def run_dev():
 
     from budget_app.db.database import DevDatabaseConfig, UnsafeDevDatabaseError
 
+    is_legacy_local = False
     try:
         config = DevDatabaseConfig.from_database_url(live_url, protected_names())
-    except UnsafeDevDatabaseError as exc:
-        sys.exit(f"[dev] {exc}")
+        is_legacy_local = True
+    except UnsafeDevDatabaseError:
+        pass
 
-    # Make SIGTERM run the finally cleanup below, just like Ctrl+C does
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
+    if is_legacy_local:
+        # Make SIGTERM run the finally cleanup below, just like Ctrl+C does
+        signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
+        try:
+            build_dev_db(config)
 
-    try:
-        build_dev_db(config)
+            import uvicorn
+
+            uvicorn.run(
+                "budget_app.api.main:app",
+                host=HOST,
+                port=PORT,
+                reload=True,
+                reload_dirs=[str(BACKEND_DIR / "src")],
+            )
+        finally:
+            teardown_dev_db(config)
+    else:
+        # Running in Docker or standard containerized dev environment
+        from alembic import command
+        from alembic.config import Config
+        from sqlmodel import Session, select
+
+        from budget_app.db import engine
+        from budget_app.models import Account
+        from budget_app.services import checkpoint_service
+
+        try:
+            command.upgrade(Config(str(BACKEND_DIR / "alembic.ini")), "head")
+        except Exception as e:
+            print(f"[dev] Migration note: {e}")
+
+        try:
+            with Session(engine) as session:
+                has_accounts = session.exec(select(Account)).first() is not None
+                if not has_accounts:
+                    print("[dev] Fresh dev database detected. Restoring 'alex_seed'...")
+                    checkpoint_service.restore_checkpoint(session, "alex_seed")
+        except Exception as e:
+            print(f"[dev] Initial seed note: {e}")
 
         import uvicorn
 
@@ -118,12 +158,34 @@ def run_dev():
             reload=True,
             reload_dirs=[str(BACKEND_DIR / "src")],
         )
-    finally:
-        teardown_dev_db(config)
 
 
 def run_prod():
-    """Runs the server in standard/production mode using DATABASE_URL from .env."""
+    """Runs the server in standard/production mode using DATABASE_URL from environment."""
+    os.environ["APP_ENV"] = "prod"
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlmodel import Session, select
+
+    from budget_app.db import engine
+    from budget_app.models import Account
+    from budget_app.services import checkpoint_service
+
+    try:
+        command.upgrade(Config(str(BACKEND_DIR / "alembic.ini")), "head")
+    except Exception as e:
+        print(f"[prod] Migration note: {e}")
+
+    try:
+        with Session(engine) as session:
+            has_accounts = session.exec(select(Account)).first() is not None
+            if not has_accounts:
+                print("[prod] Clean database detected. Bootstrapping 'clean_slate' baseline...")
+                checkpoint_service.restore_checkpoint(session, "clean_slate")
+    except Exception as e:
+        print(f"[prod] Bootstrap note: {e}")
+
     import uvicorn
 
     uvicorn.run(

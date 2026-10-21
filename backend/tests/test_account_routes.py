@@ -86,6 +86,21 @@ class TestCreateAccountRoute:
         response = client.post("/accounts/", json=payload)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
+    def test_create_loan_account_with_category_route(self, client: TestClient):
+        client.post("/categories/", json={"name": "Auto Loans Group", "order_index": 5})
+        payload = {
+            "name": "Tesla Loan",
+            "account_type": "loan",
+            "starting_balance": "25000.00",
+            "monthly_payment": "450.00",
+            "category_name": "Auto Loans Group",
+        }
+        response = client.post("/accounts/", json=payload)
+        assert response.status_code == status.HTTP_201_CREATED
+        data = response.json()
+        assert data["name"] == "Tesla Loan"
+        assert data["envelope_name"] == "Tesla Loan"
+
     @pytest.mark.parametrize("invalid_due_date", [0, 32, -5, "2026-10-01"])
     def test_create_account_invalid_due_date_returns_422(self, client: TestClient, invalid_due_date):
         payload = {
@@ -95,6 +110,21 @@ class TestCreateAccountRoute:
         }
         response = client.post("/accounts/", json=payload)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    def test_create_loan_account_with_category_route(self, client: TestClient):
+        client.post("/categories/", json={"name": "Auto Loans Group", "order_index": 5})
+        payload = {
+            "name": "Tesla Loan",
+            "account_type": "loan",
+            "starting_balance": "25000.00",
+            "monthly_payment": "450.00",
+            "category_name": "Auto Loans Group",
+        }
+        response = client.post("/accounts/", json=payload)
+        assert response.status_code == status.HTTP_201_CREATED
+        data = response.json()
+        assert data["name"] == "Tesla Loan"
+        assert data["envelope_name"] == "Tesla Loan"
 
 
 class TestGetAccountsRoute:
@@ -111,6 +141,11 @@ class TestGetAccountsRoute:
         names = [acc["name"] for acc in accounts]
         assert "Cash" in names
         assert "Travel Card" in names
+
+        travel_card = next(a for a in accounts if a["name"] == "Travel Card")
+        assert travel_card["envelope_id"] is not None
+        assert travel_card["envelope_name"] == "Credit Card Payment"
+        assert travel_card["envelope_balance"] is not None
 
     def test_get_accounts_filtering_by_active_status(self, client: TestClient):
         # Create an account and archive it
@@ -138,6 +173,25 @@ class TestGetAccountsRoute:
         all_names = [a["name"] for a in res_all.json()]
         assert "Old Card" in all_names
         assert "Cash" in all_names
+
+    def test_get_accounts_filtering_by_account_type(self, client: TestClient):
+        # Create loan account
+        client.post(
+            "/accounts/",
+            json={"name": "Auto Loan", "account_type": "loan", "starting_balance": "5000.00"},
+        )
+        # Query only cash and credit_card
+        res = client.get("/accounts/?account_type=cash&account_type=credit_card")
+        assert res.status_code == status.HTTP_200_OK
+        types = {a["account_type"] for a in res.json()}
+        assert "loan" not in types
+        assert "cash" in types or "credit_card" in types
+
+        # Query only loan
+        res_loan = client.get("/accounts/?account_type=loan")
+        assert res_loan.status_code == status.HTTP_200_OK
+        types_loan = {a["account_type"] for a in res_loan.json()}
+        assert types_loan == {"loan"}
 
 
 class TestGetAccountByNameRoute:

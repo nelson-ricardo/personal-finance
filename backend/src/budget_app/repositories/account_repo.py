@@ -6,6 +6,7 @@ from typing import List
 from sqlmodel import Session, select
 
 from budget_app.models import Account, Transaction
+from budget_app.repositories import envelope_repo
 from budget_app.schemas import (
     AccountBase,
     AccountType,
@@ -152,14 +153,17 @@ def get_account_by_id(session: Session, account_id: int) -> Account | None:
 
 
 def get_accounts(
-    session: Session, is_active: bool | None = True
+    session: Session,
+    is_active: bool | None = True,
+    account_types: list[AccountType] | None = None,
 ) -> List[Account]:
-    """Fetches accounts from database ordered by name, optionally filtered by is_active.
+    """Fetches accounts from database ordered by name, optionally filtered by is_active and account_types.
 
     Args:
         session: Active SQLModel database session.
         is_active: Optional boolean filter. If None, returns all accounts.
             Defaults to True (active accounts only).
+        account_types: Optional list of AccountType to filter by.
 
     Returns:
         List of matching Account instances ordered by name.
@@ -167,6 +171,8 @@ def get_accounts(
     stmt = select(Account)
     if is_active is not None:
         stmt = stmt.where(Account.is_active == is_active)
+    if account_types:
+        stmt = stmt.where(Account.account_type.in_(account_types))
     stmt = stmt.order_by(Account.name)
     accounts = list(session.exec(stmt).all())
     for acc in accounts:
@@ -175,7 +181,9 @@ def get_accounts(
 
 
 def get_accounts_with_balances(
-    session: Session, is_active: bool | None = True
+    session: Session,
+    is_active: bool | None = True,
+    account_types: list[AccountType] | None = None,
 ) -> List[AccountWithBalance]:
     """Fetches accounts with dynamically computed balances.
 
@@ -183,14 +191,24 @@ def get_accounts_with_balances(
         session: Active SQLModel database session.
         is_active: Optional boolean filter. If None, returns all accounts.
             Defaults to True.
+        account_types: Optional list of AccountType to filter by.
 
     Returns:
         List of AccountWithBalance instances.
     """
-    accounts = get_accounts(session, is_active=is_active)
+    accounts = get_accounts(session, is_active=is_active, account_types=account_types)
     result = []
     for acc in accounts:
         bal = get_balance_for_account(session, acc)
+        env_name = None
+        env_bal = None
+        target_env = acc.envelope
+        if target_env is None and acc.envelope_id is not None:
+            target_env = envelope_repo.get_envelope_by_id(session, acc.envelope_id)
+        if target_env is not None:
+            env_name = target_env.name
+            env_bal = envelope_repo.get_balance_for_envelope(session, target_env)
+
         if acc.id is not None:
             result.append(
                 AccountWithBalance(
@@ -204,6 +222,8 @@ def get_accounts_with_balances(
                     due_date=acc.due_date,
                     is_active=acc.is_active,
                     envelope_id=acc.envelope_id,
+                    envelope_name=env_name,
+                    envelope_balance=env_bal,
                 )
             )
     return result

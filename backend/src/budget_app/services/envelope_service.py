@@ -449,6 +449,41 @@ def get_single_envelope_w_balance(
     )
 
 
+def get_single_envelope_by_id_w_balance(
+    session: Session, envelope_id: int
+) -> EnvelopeWithBalance:
+    """Fetches a single envelope by its primary key ID and its calculated balance.
+
+    Args:
+        session: Active SQLModel database session.
+        envelope_id: Integer primary key ID of the envelope.
+
+    Returns:
+        EnvelopeWithBalance instance with current balance.
+
+    Raises:
+        ValueError: If envelope with the given ID does not exist.
+    """
+    target_envelope = envelope_repo.get_envelope_by_id(session, envelope_id)
+
+    if not target_envelope:
+        raise ValueError(f"envelope with ID {envelope_id} does not exist")
+
+    curr_balance = envelope_repo.get_balance_for_envelope(session, target_envelope)
+    cat_name = target_envelope.category.name if target_envelope.category else None
+
+    return EnvelopeWithBalance(
+        id=target_envelope.id,
+        name=target_envelope.name,
+        note=target_envelope.note,
+        is_active=target_envelope.is_active,
+        category_id=target_envelope.category_id,
+        category_name=cat_name,
+        system_role=target_envelope.system_role,
+        balance=curr_balance,
+    )
+
+
 def perma_delete_envelope(session: Session, envelope_name: str) -> bool:
     """Permanently deletes an envelope if it has no associated ledger transactions.
 

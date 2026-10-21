@@ -56,7 +56,7 @@
 		{ href: resolve('/'), label: 'Home', isWip: false, icon: 'home' },
 		{ href: resolve('/accounts'), label: 'Accounts', isWip: false, icon: 'wallet' },
 		{ href: resolve('/envelopes'), label: 'Envelopes', isWip: false, icon: 'envelope' },
-		{ href: resolve('/transactions'), label: 'Transactions', isWip: true, icon: 'receipt' }
+		{ href: resolve('/transactions'), label: 'Transactions', isWip: false, icon: 'receipt' }
 	] as const;
 </script>
 

@@ -1,0 +1,73 @@
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: budget_app_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-budgeter}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-budgeter_password}
+      POSTGRES_DB: postgres
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./docker/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-budgeter}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - budget_net
+
+  backend:
+    container_name: budget_backend
+    restart: unless-stopped
+    build:
+      context: ./backend
+      target: ${BACKEND_TARGET:-dev}
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-budgeter}:${POSTGRES_PASSWORD:-budgeter_password}@db:5432/${DB_NAME:-budget_app_dev}
+      CHECKPOINTS_DIR: /app/checkpoints
+      HOST: 0.0.0.0
+      PORT: 8000
+    volumes:
+      - ./checkpoints:/app/checkpoints
+      - ./backend/src:/app/src
+      - ./backend/main.py:/app/main.py
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - budget_net
+
+  frontend:
+    container_name: budget_frontend
+    restart: unless-stopped
+    build:
+      context: ./frontend
+      target: ${FRONTEND_TARGET:-dev}
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      BACKEND_API_URL: http://backend:8000
+      HOST: 0.0.0.0
+      PORT: ${FRONTEND_PORT:-5173}
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/static:/app/static
+    ports:
+      - "${FRONTEND_PORT:-5173}:${FRONTEND_PORT:-5173}"
+    depends_on:
+      - backend
+    networks:
+      - budget_net
+
+volumes:
+  postgres_data:
+
+networks:
+  budget_net:
+    driver: bridge

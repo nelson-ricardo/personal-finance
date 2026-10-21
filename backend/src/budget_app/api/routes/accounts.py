@@ -1,10 +1,10 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, Query
 from sqlmodel import Session
 
 from budget_app.db import get_session
-from budget_app.schemas import AccountCreate, AccountResponse, AccountUpdate
+from budget_app.schemas import AccountCreate, AccountResponse, AccountUpdate, AccountType
 from budget_app.services import account_service
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -19,8 +19,14 @@ def create_account(account: AccountCreate, session: Session = Depends(get_sessio
 
 # get all accounts
 @router.get("/", response_model=List[AccountResponse], status_code=status.HTTP_200_OK)
-def get_accounts(is_active: bool | None = None, session: Session = Depends(get_session)):
-    return account_service.get_all_accounts(session, is_active=is_active)
+def get_accounts(
+    is_active: bool | None = None,
+    account_type: List[AccountType] | None = Query(default=None),
+    session: Session = Depends(get_session)
+):
+    return account_service.get_all_accounts(
+        session, is_active=is_active, account_types=account_type
+    )
 
 #get account by name
 @router.get("/{name}", response_model=AccountResponse, status_code=status.HTTP_200_OK)

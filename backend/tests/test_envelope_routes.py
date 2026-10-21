@@ -118,6 +118,26 @@ class TestGetEnvelopesRoute:
         assert "Gym Active" not in inactive_names
 
 
+class TestGetEnvelopeByIdRoute:
+    def test_get_envelope_by_id_success(self, client: TestClient, base_setup):
+        create_res = client.post("/envelopes/", json={"name": "Emergency Medical", "note": "Urgent Care"})
+        assert create_res.status_code == status.HTTP_201_CREATED
+        env_id = create_res.json()["id"]
+
+        response = client.get(f"/envelopes/id/{env_id}")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["id"] == env_id
+        assert data["name"] == "Emergency Medical"
+        assert data["note"] == "Urgent Care"
+        assert "balance" in data
+
+    def test_get_envelope_by_id_not_found(self, client: TestClient, base_setup):
+        response = client.get("/envelopes/id/999999")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert "does not exist" in response.json()["detail"]
+
+
 class TestGetEnvelopeByNameRoute:
     def test_get_envelope_by_name_success(self, client: TestClient, base_setup):
         client.post("/envelopes/", json={"name": "Rent & Mortgage", "note": "Monthly payment"})

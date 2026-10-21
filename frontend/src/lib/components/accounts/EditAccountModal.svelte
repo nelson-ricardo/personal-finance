@@ -198,4 +198,50 @@
 			</button>
 		</div>
 	</form>
+
+	<!-- Account Lifecycle Actions (Archive & Reactivate) -->
+	{#if account && account.name !== 'Cash'}
+		<div class="mt-5 pt-4 border-t border-brand-200/80">
+			<div
+				class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl {account.is_active
+					? 'bg-amber-50/70 border border-amber-200/80'
+					: 'bg-emerald-50/70 border border-emerald-200/80'}"
+			>
+				<div>
+					<div
+						class="text-xs font-bold {account.is_active ? 'text-amber-900' : 'text-emerald-900'}"
+					>
+						{account.is_active ? 'Archive Account' : 'Reactivate Account'}
+					</div>
+					<div class="text-[11px] text-brand-600 mt-0.5 max-w-sm">
+						{account.is_active
+							? 'Archiving hides this account from active lists. Accounts with non-starting transactions cannot be archived.'
+							: 'Reactivates this account, making it available again for transactions and budgeting.'}
+					</div>
+				</div>
+
+				{#if account.is_active}
+					<form method="POST" action="?/archiveAccount">
+						<input type="hidden" name="name" value={account.name} />
+						<button
+							type="submit"
+							class="w-full sm:w-auto px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-100 text-amber-900 hover:bg-amber-200 transition-colors cursor-pointer border border-amber-300 shadow-2xs whitespace-nowrap"
+						>
+							Archive Account
+						</button>
+					</form>
+				{:else}
+					<form method="POST" action="?/activateAccount">
+						<input type="hidden" name="name" value={account.name} />
+						<button
+							type="submit"
+							class="w-full sm:w-auto px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-900 hover:bg-emerald-200 transition-colors cursor-pointer border border-emerald-300 shadow-2xs whitespace-nowrap"
+						>
+							Reactivate Account
+						</button>
+					</form>
+				{/if}
+			</div>
+		</div>
+	{/if}
 </Modal>

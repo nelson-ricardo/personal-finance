@@ -18,6 +18,12 @@ from budget_app.schemas.category import (
     EnvelopeCategoryUpdate,
     EnvelopeCategoryWithEnvelopes,
 )
+from budget_app.schemas.checkpoint import (
+    CheckpointCreateRequest,
+    CheckpointRestoreResponse,
+    CheckpointStats,
+    CheckpointSummary,
+)
 from budget_app.schemas.envelope import (
     CashIncomeRequest,
     EnvelopeAssignRequest,
@@ -84,6 +90,10 @@ __all__ = [
     "EnvelopeWithBalance",
     "EnvelopeUpdate",
     "SystemEnvelopeType",
+    "CheckpointStats",
+    "CheckpointSummary",
+    "CheckpointCreateRequest",
+    "CheckpointRestoreResponse",
 ]
 
 

@@ -13,12 +13,19 @@ export const AccountSchema = z.object({
 	is_active: z.boolean(),
 	due_date: z.number().int().min(1).max(31).nullable().optional(),
 	monthly_payment: z.string().nullable().optional(),
-	envelope_id: z.number().nullable().optional()
+	envelope_id: z.number().nullable().optional(),
+	envelope_name: z.string().nullable().optional(),
+	envelope_balance: z
+		.union([z.string(), z.number()])
+		.transform((val) => String(val))
+		.nullable()
+		.optional()
 });
 
 export const createAccountSchema = z.object({
 	name: z.string().trim().min(1, 'Account name is required'),
 	account_type: AccountTypeSchema,
+	category_name: z.string().trim().optional(),
 	current_balance: z
 		.string()
 		.regex(/^\d+(\.\d{1,2})?$/, 'Invalid balance')
@@ -79,3 +86,47 @@ export const AccountsListSchema = z.array(AccountSchema);
 
 export type Account = z.infer<typeof AccountSchema>;
 export type AccountsList = z.infer<typeof AccountsListSchema>;
+
+// Account Operations Schemas (Debt Payment, Balance Adjustment, Interest Charge, Interest Earned)
+
+export const paymentSchema = z.object({
+	account: z.string().trim().min(1, 'Target debt account is required'),
+	amount: z
+		.string()
+		.regex(/^\d+(\.\d{1,2})?$/, 'Invalid amount (e.g. 50.00)')
+		.refine((val) => parseFloat(val) > 0, 'Payment amount must be greater than 0')
+});
+export type PaymentForm = z.infer<typeof paymentSchema>;
+
+export const accountAdjustmentSchema = z.object({
+	account_name: z.string().trim().min(1, 'Account is required'),
+	target_balance: z
+		.string()
+		.regex(/^-?\d+(\.\d{1,2})?$/, 'Invalid target balance (e.g. 1250.00 or -50.00)'),
+	note: z.string().optional().nullable(),
+	envelope_name: z.string().optional().nullable(),
+	logged_date: z.string().optional().nullable()
+});
+export type AccountAdjustmentForm = z.infer<typeof accountAdjustmentSchema>;
+
+export const interestChargeSchema = z.object({
+	account_name: z.string().trim().min(1, 'Debt account is required'),
+	amount: z
+		.string()
+		.regex(/^\d+(\.\d{1,2})?$/, 'Invalid amount (e.g. 15.25)')
+		.refine((val) => parseFloat(val) > 0, 'Interest charge must be greater than 0'),
+	note: z.string().optional().nullable(),
+	logged_date: z.string().min(1, 'Date is required')
+});
+export type InterestChargeForm = z.infer<typeof interestChargeSchema>;
+
+export const interestEarnedSchema = z.object({
+	account_name: z.string().trim().min(1, 'Cash account is required'),
+	amount: z
+		.string()
+		.regex(/^\d+(\.\d{1,2})?$/, 'Invalid amount (e.g. 12.50)')
+		.refine((val) => parseFloat(val) > 0, 'Interest earned must be greater than 0'),
+	note: z.string().optional().nullable(),
+	logged_date: z.string().min(1, 'Date is required')
+});
+export type InterestEarnedForm = z.infer<typeof interestEarnedSchema>;

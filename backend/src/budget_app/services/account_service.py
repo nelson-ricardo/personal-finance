@@ -100,9 +100,14 @@ def create_account(
     # 4. Stage new account
     new_account = account_repo.create_account(session, acc_info)
 
-    # 5. Auto-link Credit Card accounts to 'Credit Card Payment' envelope
-    fixed_cat = category_repo.get_category_by_name(session, "Fixed Monthly Expenses")
-    fixed_cat_id = fixed_cat.id if fixed_cat else None
+    # 5. Auto-link Credit Card and Loan accounts to payment envelopes
+    cat_id = None
+    if getattr(acc_info, "category_name", None):
+        cat_name = acc_info.category_name.strip()
+        if cat_name:
+            cat = category_repo.get_category_by_name(session, cat_name)
+            if cat:
+                cat_id = cat.id
 
     if acc_info.account_type == AccountType.CREDIT_CARD:
         cc_envelope = (
@@ -115,18 +120,18 @@ def create_account(
                     name="Credit Card Payment",
                     system_role=SystemEnvelopeType.CREDIT_CARD_PAYMENT,
                 ),
-                category_id=fixed_cat_id,
+                category_id=cat_id,
             )
         )
-        if fixed_cat_id is not None and cc_envelope.category_id is None:
-            cc_envelope.category_id = fixed_cat_id
+        if cat_id is not None and cc_envelope.category_id is None:
+            cc_envelope.category_id = cat_id
         new_account.envelope_id = cc_envelope.id
     elif acc_info.account_type == AccountType.LOAN:
         payment_envelope = envelope_repo.get_or_create_envelope(
-            session, EnvelopeBase(name=acc_info.name), category_id=fixed_cat_id
+            session, EnvelopeBase(name=acc_info.name), category_id=cat_id
         )
-        if fixed_cat_id is not None and payment_envelope.category_id is None:
-            payment_envelope.category_id = fixed_cat_id
+        if cat_id is not None and payment_envelope.category_id is None:
+            payment_envelope.category_id = cat_id
         new_account.envelope = payment_envelope
 
     session.commit()
@@ -357,6 +362,15 @@ def get_account(
     if is_active is not None and account.is_active != is_active:
         return None
     bal = account_repo.get_balance_for_account(session, account)
+    env_name = None
+    env_bal = None
+    target_env = account.envelope
+    if target_env is None and account.envelope_id is not None:
+        target_env = envelope_repo.get_envelope_by_id(session, account.envelope_id)
+    if target_env is not None:
+        env_name = target_env.name
+        env_bal = envelope_repo.get_balance_for_envelope(session, target_env)
+
     return AccountWithBalance(
         id=account.id,
         name=account.name,
@@ -368,22 +382,29 @@ def get_account(
         due_date=account.due_date,
         is_active=account.is_active,
         envelope_id=account.envelope_id,
+        envelope_name=env_name,
+        envelope_balance=env_bal,
     )
 
 
 def get_all_accounts(
-    session: Session, is_active: bool | None = True
+    session: Session,
+    is_active: bool | None = True,
+    account_types: list[AccountType] | None = None,
 ) -> List[AccountWithBalance]:
     """Fetches accounts with their dynamically derived balances.
 
     Args:
         session: Active SQLModel database session.
         is_active: Optional boolean filter. If None, returns all accounts. Defaults to True.
+        account_types: Optional list of AccountType to filter by.
 
     Returns:
         List of AccountWithBalance instances.
     """
-    return account_repo.get_accounts_with_balances(session, is_active=is_active)
+    return account_repo.get_accounts_with_balances(
+        session, is_active=is_active, account_types=account_types
+    )
 
 
 def delete_account(session: Session, account_name: str) -> Account:
@@ -590,10 +611,18 @@ def make_payment(
 
     # create the credit card payment transaction
     tx_date = logged_date or date.today()
+    cash_acc = account_repo.get_cash_account(session)
+    cash_name = cash_acc.name if cash_acc else "Cash"
+
+    adj_env = envelope_repo.get_envelope_by_system_role(
+        session, SystemEnvelopeType.ACCOUNT_ADJUSTMENT
+    )
+    adj_name = adj_env.name if adj_env else "Account Adjustment"
+
     tx_pay_req: TransactionRequest = TransactionRequest(
         merchant=target,
         note=f"payment for {target} account",
-        payment_method_name="Cash",
+        payment_method_name=cash_name,
         transaction_type=TransactionType.EXPENSE,
         splits=[
             EnvelopeSplitRequest(
@@ -612,7 +641,7 @@ def make_payment(
         splits=[
             EnvelopeSplitRequest(
                 amount=Decimal(amount),
-                envelope_name="Account Adjustment"
+                envelope_name=adj_name
             )
         ],
         logged_date=tx_date,

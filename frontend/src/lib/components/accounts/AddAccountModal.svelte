@@ -2,15 +2,18 @@
 	import { superForm } from 'sveltekit-superforms';
 	import type { SuperValidated, Infer } from 'sveltekit-superforms';
 	import type { createAccountSchema } from '#lib/schemas/account.ts';
+	import type { EnvelopeCategoryWithEnvelopes } from '#lib/schemas/category.ts';
 	import Modal from '#lib/components/Modal.svelte';
 
 	let {
 		open = false,
 		formData,
+		categories = [],
 		onclose
 	}: {
 		open: boolean;
 		formData: SuperValidated<Infer<typeof createAccountSchema>>;
+		categories?: EnvelopeCategoryWithEnvelopes[];
 		onclose: () => void;
 	} = $props();
 
@@ -28,6 +31,8 @@
 			}
 		}
 	});
+
+	const userCategories = $derived(categories.filter((c) => c.name !== 'System'));
 </script>
 
 <Modal
@@ -87,6 +92,32 @@
 				<option value="loan">Loan</option>
 			</select>
 		</div>
+
+		<!-- Category Group (Optional for Loan payment envelope) -->
+		{#if $newAccount.account_type === 'loan'}
+			<div>
+				<label
+					for="create-category"
+					class="block text-xs font-bold text-brand-800 uppercase tracking-wider mb-1"
+				>
+					Category Group <span class="font-normal lowercase text-brand-500">(optional)</span>
+				</label>
+				<select
+					name="category_name"
+					id="create-category"
+					bind:value={$newAccount.category_name}
+					class="w-full px-3 py-2.5 rounded-xl border border-brand-300 text-base sm:text-sm text-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white"
+				>
+					<option value="">None (Uncategorized)</option>
+					{#each userCategories as cat (cat.id)}
+						<option value={cat.name}>{cat.name}</option>
+					{/each}
+				</select>
+				<p class="text-[11px] text-brand-600 mt-1">
+					Choose which category group will house this loan's payment envelope.
+				</p>
+			</div>
+		{/if}
 
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
 			<!-- Current Balance -->

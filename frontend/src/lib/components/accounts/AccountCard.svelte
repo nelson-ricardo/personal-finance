@@ -1,14 +1,59 @@
 <script lang="ts">
 	import type { Account } from '#lib/schemas/account.ts';
+	import type { Envelope } from '#lib/schemas/category.ts';
 	import { formatCurrency, getOrdinalSuffix } from '#lib/utils/formatters.ts';
 
 	let {
 		account,
-		onedit
+		envelopes = [],
+		onedit,
+		onoperation
 	}: {
 		account: Account;
+		envelopes?: Envelope[];
 		onedit?: (account: Account) => void;
+		onoperation?: (
+			tab: 'payment' | 'adjustment' | 'interest_charge' | 'interest_earned',
+			account: Account
+		) => void;
 	} = $props();
+
+	const linkedEnvelope = $derived.by(() => {
+		if (account.account_type === 'cash') return null;
+
+		// 1. Match by account.envelope_id
+		if (account.envelope_id) {
+			const found = envelopes.find((e) => e.id === account.envelope_id);
+			if (found) return found;
+		}
+
+		const acctNameLower = account.name.toLowerCase();
+
+		// 2. If Credit Card
+		if (account.account_type === 'credit_card') {
+			const found = envelopes.find(
+				(e) =>
+					e.system_role?.toUpperCase() === 'CREDIT_CARD_PAYMENT' ||
+					e.name.toLowerCase() === 'credit card payment' ||
+					e.name.toLowerCase() === `credit card payment - ${acctNameLower}` ||
+					e.name.toLowerCase().includes(acctNameLower)
+			);
+			if (found) return found;
+		}
+
+		// 3. If Loan
+		const found = envelopes.find(
+			(e) => e.name.toLowerCase() === acctNameLower || e.name.toLowerCase().includes(acctNameLower)
+		);
+		if (found) return found;
+
+		return null;
+	});
+
+	const displayEnvelopeName = $derived(account.envelope_name ?? linkedEnvelope?.name ?? null);
+	const displayEnvelopeBalance = $derived(
+		account.envelope_balance ?? linkedEnvelope?.balance ?? null
+	);
 </script>
 
 <div
@@ -75,6 +120,24 @@
 		</div>
 	</div>
 
+	<!-- Available in Envelope Banner for Debt Accounts -->
+	{#if account.account_type === 'credit_card' || account.account_type === 'loan'}
+		<div
+			class="flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-50/80 border border-emerald-200/80 text-xs"
+		>
+			<span class="text-emerald-900 font-medium flex items-center gap-1.5">
+				<span>✉️</span>
+				<span>Available in Envelope</span>
+				{#if displayEnvelopeName}
+					<span class="text-[10px] text-emerald-700 font-sans">({displayEnvelopeName})</span>
+				{/if}
+			</span>
+			<span class="font-mono tabular-nums font-bold text-emerald-900 text-sm">
+				{displayEnvelopeBalance != null ? formatCurrency(displayEnvelopeBalance) : '—'}
+			</span>
+		</div>
+	{/if}
+
 	<!-- Card Details Row (Responsive Grid) -->
 	<div
 		class="grid grid-cols-2 gap-2.5 sm:gap-3 py-2.5 sm:py-3 border-t border-b border-brand-100 text-xs"
@@ -112,22 +175,92 @@
 		</div>
 	</div>
 
-	<!-- Card Footer Action -->
-	<div class="flex items-center justify-between pt-0.5">
+	<!-- Card Footer Action Buttons -->
+	<div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-brand-100/70">
 		<span class="text-[11px] font-mono text-brand-500">
 			ID #{account.id}
 		</span>
 
-		{#if account.account_type !== 'cash'}
-			<button
-				type="button"
-				onclick={() => onedit?.(account)}
-				class="px-3 py-1.5 rounded-lg text-xs font-semibold text-brand-700 bg-brand-50 hover:bg-brand-100 hover:text-brand-900 border border-brand-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 cursor-pointer"
-			>
-				Edit Account
-			</button>
-		{:else}
-			<span class="text-xs text-brand-400 italic">Cash Managed</span>
-		{/if}
+		<div class="flex flex-wrap items-center gap-1.5">
+			{#if !account.is_active}
+				<form method="POST" action="?/activateAccount" class="inline">
+					<input type="hidden" name="name" value={account.name} />
+					<button
+						type="submit"
+						class="px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+						title="Reactivate this archived account"
+					>
+						<span>🔄</span>
+						<span>Reactivate</span>
+					</button>
+				</form>
+
+				<button
+					type="button"
+					onclick={() => onedit?.(account)}
+					class="px-2 py-1 rounded-lg text-xs font-semibold text-brand-600 hover:text-brand-900 hover:bg-brand-100/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 cursor-pointer"
+					title="Edit account settings"
+				>
+					Edit
+				</button>
+			{:else if account.account_type === 'credit_card' || account.account_type === 'loan'}
+				<button
+					type="button"
+					onclick={() => onoperation?.('payment', account)}
+					class="px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer flex items-center gap-1"
+					title="Record payment toward debt"
+				>
+					<span>💳</span>
+					<span>Pay</span>
+				</button>
+
+				<button
+					type="button"
+					onclick={() => onoperation?.('adjustment', account)}
+					class="px-2 py-1 rounded-lg text-xs font-semibold text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 cursor-pointer"
+					title="Reconcile account balance"
+				>
+					<span>⚖️ Adjust</span>
+				</button>
+
+				<button
+					type="button"
+					onclick={() => onoperation?.('interest_charge', account)}
+					class="px-2 py-1 rounded-lg text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 cursor-pointer"
+					title="Log interest or finance fee"
+				>
+					<span>📈 Interest</span>
+				</button>
+
+				<button
+					type="button"
+					onclick={() => onedit?.(account)}
+					class="px-2 py-1 rounded-lg text-xs font-semibold text-brand-600 hover:text-brand-900 hover:bg-brand-100/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 cursor-pointer"
+					title="Edit account settings"
+				>
+					Edit
+				</button>
+			{:else}
+				<button
+					type="button"
+					onclick={() => onoperation?.('adjustment', account)}
+					class="px-2.5 py-1 rounded-lg text-xs font-semibold text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 cursor-pointer flex items-center gap-1"
+					title="Reconcile cash balance"
+				>
+					<span>⚖️</span>
+					<span>Adjust Balance</span>
+				</button>
+
+				<button
+					type="button"
+					onclick={() => onoperation?.('interest_earned', account)}
+					class="px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer flex items-center gap-1"
+					title="Log interest earned (APY)"
+				>
+					<span>💰</span>
+					<span>+ Interest</span>
+				</button>
+			{/if}
+		</div>
 	</div>
 </div>

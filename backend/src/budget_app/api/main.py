@@ -19,16 +19,16 @@ async def health():
     }
 
 
-# Development-only wiring. Enabled by backend/dev_server.py (APP_ENV=dev); the
-# production app and the test suite never mount these.
-if os.getenv("APP_ENV") == "dev":
+# Development and UAT wiring. Enabled in dev or prod (APP_ENV in ("dev", "prod")).
+# Hidden routes /dev/checkpoints allow database snapshots and safe rollback.
+if os.getenv("APP_ENV") in ("dev", "prod"):
     from fastapi.middleware.cors import CORSMiddleware
 
     from budget_app.api.routes import dev
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+        allow_origins=["*"],
         allow_methods=["*"],
         allow_headers=["*"],
     )

@@ -16,6 +16,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 
 # load .env.test before any engine initialization, overriding anything that might have loaded before
 load_dotenv(BASE_DIR / ".env.test", override=True)
+os.environ.pop("APP_ENV", None)
 
 TEST_DATABASE_URL = os.getenv("DATABASE_URL")
 if not TEST_DATABASE_URL:

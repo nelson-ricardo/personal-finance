@@ -7,6 +7,7 @@ wheels/
 *.egg-info
 .env
 .env.*
+!.env.example
 
 # Virtual environments
 .venv
@@ -27,6 +28,13 @@ graphify-out/manifest.json
 graphify-out/cost.json
 
 .vscode/
+
+# Checkpoint snapshots (local database dumps)
+checkpoints/*.json
+!checkpoints/.gitkeep
+!checkpoints/alex_seed.json
+!checkpoints/clean_slate.json
+!checkpoints/blank_slate.json
 
 # Keep the high-level architecture overview tracked
 !graphify-out/GRAPH_REPORT.md

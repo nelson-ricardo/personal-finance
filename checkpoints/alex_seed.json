@@ -1,0 +1,2486 @@
+{
+  "version": "1.0",
+  "id": "alex_seed",
+  "name": "Alex Seed (Full Demo Dataset)",
+  "filename": "alex_seed.json",
+  "created_at": "2026-10-21T21:43:49.989511+00:00",
+  "stats": {
+    "accounts_count": 5,
+    "categories_count": 5,
+    "envelopes_count": 16,
+    "transactions_count": 110,
+    "total_cash": "6370.17",
+    "total_debt": "9163.86"
+  },
+  "data": {
+    "envelope_category": [
+      {
+        "id": 1,
+        "order_index": 1,
+        "name": "Fixed Monthly Expenses",
+        "is_active": true
+      },
+      {
+        "id": 2,
+        "order_index": 2,
+        "name": "Variable Monthly Expenses",
+        "is_active": true
+      },
+      {
+        "id": 3,
+        "order_index": 3,
+        "name": "Savings",
+        "is_active": true
+      },
+      {
+        "id": 4,
+        "order_index": 4,
+        "name": "Wants",
+        "is_active": true
+      },
+      {
+        "id": 5,
+        "order_index": 5,
+        "name": "System",
+        "is_active": true
+      }
+    ],
+    "envelope": [
+      {
+        "note": "default bucket for money coming in",
+        "id": 1,
+        "system_role": "UNASSIGNED",
+        "name": "Unassigned",
+        "is_active": true,
+        "category_id": 5
+      },
+      {
+        "note": "holds money allocated to pay off credit card balance",
+        "id": 2,
+        "system_role": "CREDIT_CARD_PAYMENT",
+        "name": "Credit Card Payment",
+        "is_active": true,
+        "category_id": 1
+      },
+      {
+        "note": "system envelope for absorbing account-only balance adjustments",
+        "id": 3,
+        "system_role": "ACCOUNT_ADJUSTMENT",
+        "name": "Account Adjustment",
+        "is_active": true,
+        "category_id": 5
+      },
+      {
+        "note": null,
+        "id": 4,
+        "system_role": null,
+        "name": "Honda Civic Loan",
+        "is_active": true,
+        "category_id": 1
+      },
+      {
+        "note": "Monthly apartment rent",
+        "id": 5,
+        "system_role": null,
+        "name": "Rent",
+        "is_active": true,
+        "category_id": 1
+      },
+      {
+        "note": "Electric and water",
+        "id": 6,
+        "system_role": null,
+        "name": "Utilities",
+        "is_active": true,
+        "category_id": 1
+      },
+      {
+        "note": null,
+        "id": 7,
+        "system_role": null,
+        "name": "Phone Bill",
+        "is_active": true,
+        "category_id": 1
+      },
+      {
+        "note": null,
+        "id": 8,
+        "system_role": null,
+        "name": "Groceries",
+        "is_active": true,
+        "category_id": 2
+      },
+      {
+        "note": "Car fuel",
+        "id": 9,
+        "system_role": null,
+        "name": "Gas",
+        "is_active": true,
+        "category_id": 2
+      },
+      {
+        "note": "Cleaning, home goods",
+        "id": 10,
+        "system_role": null,
+        "name": "Household",
+        "is_active": true,
+        "category_id": 2
+      },
+      {
+        "note": null,
+        "id": 11,
+        "system_role": null,
+        "name": "Skincare",
+        "is_active": true,
+        "category_id": 2
+      },
+      {
+        "note": null,
+        "id": 12,
+        "system_role": null,
+        "name": "Dining Out",
+        "is_active": true,
+        "category_id": 4
+      },
+      {
+        "note": "Streaming, movies, books",
+        "id": 13,
+        "system_role": null,
+        "name": "Entertainment",
+        "is_active": true,
+        "category_id": 4
+      },
+      {
+        "note": "3 months of expenses",
+        "id": 14,
+        "system_role": null,
+        "name": "Emergency Fund",
+        "is_active": true,
+        "category_id": 3
+      },
+      {
+        "note": null,
+        "id": 15,
+        "system_role": null,
+        "name": "Vacation",
+        "is_active": true,
+        "category_id": 3
+      },
+      {
+        "note": "100.00/mo.",
+        "id": 16,
+        "system_role": null,
+        "name": "Best Buy Laptop - 12",
+        "is_active": true,
+        "category_id": 1
+      }
+    ],
+    "account": [
+      {
+        "account_type": "cash",
+        "interest_saving_balance": null,
+        "due_date": null,
+        "id": 1,
+        "envelope_id": null,
+        "total_statement_balance": null,
+        "name": "Cash",
+        "monthly_payment": null,
+        "is_active": true
+      },
+      {
+        "account_type": "credit_card",
+        "interest_saving_balance": null,
+        "due_date": 25,
+        "id": 2,
+        "envelope_id": 2,
+        "total_statement_balance": null,
+        "name": "Chase Sapphire",
+        "monthly_payment": "0.00",
+        "is_active": true
+      },
+      {
+        "account_type": "credit_card",
+        "interest_saving_balance": null,
+        "due_date": 19,
+        "id": 3,
+        "envelope_id": 2,
+        "total_statement_balance": null,
+        "name": "Amex Blue",
+        "monthly_payment": "0.00",
+        "is_active": true
+      },
+      {
+        "account_type": "loan",
+        "interest_saving_balance": null,
+        "due_date": 10,
+        "id": 4,
+        "envelope_id": 4,
+        "total_statement_balance": null,
+        "name": "Honda Civic Loan",
+        "monthly_payment": "285.00",
+        "is_active": true
+      },
+      {
+        "account_type": "credit_card",
+        "interest_saving_balance": null,
+        "due_date": 10,
+        "id": 5,
+        "envelope_id": 2,
+        "total_statement_balance": null,
+        "name": "Discover It",
+        "monthly_payment": "0.00",
+        "is_active": true
+      }
+    ],
+    "transaction": [
+      {
+        "merchant": "Starting Balance",
+        "note": null,
+        "id": 1,
+        "transaction_type": "INTEREST_CHARGE",
+        "posted_date": null,
+        "logged_date": "2026-08-01",
+        "is_reconciled": false,
+        "payment_method_id": 4
+      },
+      {
+        "merchant": "Acme Corp Paycheck",
+        "note": null,
+        "id": 2,
+        "transaction_type": "INCOME",
+        "posted_date": null,
+        "logged_date": "2026-08-07",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Rent",
+        "note": null,
+        "id": 3,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-07",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Utilities",
+        "note": null,
+        "id": 4,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-07",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Phone Bill",
+        "note": null,
+        "id": 5,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-07",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Honda Civic Loan",
+        "note": null,
+        "id": 6,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-07",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Groceries",
+        "note": null,
+        "id": 7,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-07",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Gas",
+        "note": null,
+        "id": 8,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-07",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Household",
+        "note": null,
+        "id": 9,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-07",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Dining Out",
+        "note": null,
+        "id": 10,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-07",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Skincare",
+        "note": null,
+        "id": 11,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-07",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Entertainment",
+        "note": null,
+        "id": 12,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-07",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Emergency Fund",
+        "note": null,
+        "id": 13,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-07",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Vacation",
+        "note": null,
+        "id": 14,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-07",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Landlord",
+        "note": null,
+        "id": 15,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-08",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Trader Joe's",
+        "note": null,
+        "id": 16,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-09",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Target",
+        "note": null,
+        "id": 17,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-10",
+        "is_reconciled": false,
+        "payment_method_id": 2
+      },
+      {
+        "merchant": "Honda Civic Loan",
+        "note": "payment for Honda Civic Loan account",
+        "id": 18,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-10",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Honda Civic Loan",
+        "note": "payment for Honda Civic Loan account",
+        "id": 19,
+        "transaction_type": "INCOME",
+        "posted_date": null,
+        "logged_date": "2026-08-10",
+        "is_reconciled": false,
+        "payment_method_id": 4
+      },
+      {
+        "merchant": "City Electric",
+        "note": null,
+        "id": 20,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-12",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Shell",
+        "note": null,
+        "id": 21,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-13",
+        "is_reconciled": false,
+        "payment_method_id": 2
+      },
+      {
+        "merchant": "Netflix",
+        "note": null,
+        "id": 22,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-14",
+        "is_reconciled": false,
+        "payment_method_id": 2
+      },
+      {
+        "merchant": "Chipotle",
+        "note": null,
+        "id": 23,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-15",
+        "is_reconciled": false,
+        "payment_method_id": 3
+      },
+      {
+        "merchant": "Whole Foods",
+        "note": null,
+        "id": 24,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-16",
+        "is_reconciled": false,
+        "payment_method_id": 2
+      },
+      {
+        "merchant": "Verizon",
+        "note": null,
+        "id": 25,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-17",
+        "is_reconciled": false,
+        "payment_method_id": 3
+      },
+      {
+        "merchant": "Acme Corp Paycheck",
+        "note": null,
+        "id": 26,
+        "transaction_type": "INCOME",
+        "posted_date": null,
+        "logged_date": "2026-08-21",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Groceries",
+        "note": null,
+        "id": 27,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-21",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Gas",
+        "note": null,
+        "id": 28,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-21",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Household",
+        "note": null,
+        "id": 29,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-21",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Dining Out",
+        "note": null,
+        "id": 30,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-21",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Skincare",
+        "note": null,
+        "id": 31,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-21",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Entertainment",
+        "note": null,
+        "id": 32,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-21",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Emergency Fund",
+        "note": null,
+        "id": 33,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-21",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Vacation",
+        "note": null,
+        "id": 34,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-21",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Costco",
+        "note": null,
+        "id": 35,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-22",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Olive Garden",
+        "note": null,
+        "id": 36,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-23",
+        "is_reconciled": false,
+        "payment_method_id": 2
+      },
+      {
+        "merchant": "Chevron",
+        "note": null,
+        "id": 37,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-24",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Amazon",
+        "note": "Storage bin and a paperback",
+        "id": 38,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-25",
+        "is_reconciled": false,
+        "payment_method_id": 3
+      },
+      {
+        "merchant": "AMC Theatres",
+        "note": null,
+        "id": 39,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-28",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Sephora",
+        "note": null,
+        "id": 40,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-08-29",
+        "is_reconciled": false,
+        "payment_method_id": 3
+      },
+      {
+        "merchant": "transfer Dining Out -> Groceries",
+        "note": null,
+        "id": 41,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-08-30",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Interest Charge",
+        "note": "Interest Charge",
+        "id": 42,
+        "transaction_type": "INTEREST_CHARGE",
+        "posted_date": null,
+        "logged_date": "2026-08-31",
+        "is_reconciled": false,
+        "payment_method_id": 2
+      },
+      {
+        "merchant": "Chase Sapphire",
+        "note": "payment for Chase Sapphire account",
+        "id": 43,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-09-02",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Chase Sapphire",
+        "note": "payment for Chase Sapphire account",
+        "id": 44,
+        "transaction_type": "INCOME",
+        "posted_date": null,
+        "logged_date": "2026-09-02",
+        "is_reconciled": false,
+        "payment_method_id": 2
+      },
+      {
+        "merchant": "Acme Corp Paycheck",
+        "note": null,
+        "id": 45,
+        "transaction_type": "INCOME",
+        "posted_date": null,
+        "logged_date": "2026-09-04",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Rent",
+        "note": null,
+        "id": 46,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-04",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Utilities",
+        "note": null,
+        "id": 47,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-04",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Phone Bill",
+        "note": null,
+        "id": 48,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-04",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Honda Civic Loan",
+        "note": null,
+        "id": 49,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-04",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Groceries",
+        "note": null,
+        "id": 50,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-04",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Gas",
+        "note": null,
+        "id": 51,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-04",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Household",
+        "note": null,
+        "id": 52,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-04",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Dining Out",
+        "note": null,
+        "id": 53,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-04",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Emergency Fund",
+        "note": null,
+        "id": 54,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-04",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Vacation",
+        "note": null,
+        "id": 55,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-04",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Landlord",
+        "note": null,
+        "id": 56,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-09-05",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Best Buy Laptop",
+        "note": "New laptop on a 12-month plan",
+        "id": 57,
+        "transaction_type": "FINANCED",
+        "posted_date": null,
+        "logged_date": "2026-09-06",
+        "is_reconciled": false,
+        "payment_method_id": 3
+      },
+      {
+        "merchant": "City Electric",
+        "note": null,
+        "id": 58,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-09-08",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Target",
+        "note": null,
+        "id": 59,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-09-09",
+        "is_reconciled": false,
+        "payment_method_id": 2
+      },
+      {
+        "merchant": "Honda Civic Loan",
+        "note": "payment for Honda Civic Loan account",
+        "id": 60,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-09-10",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Honda Civic Loan",
+        "note": "payment for Honda Civic Loan account",
+        "id": 61,
+        "transaction_type": "INCOME",
+        "posted_date": null,
+        "logged_date": "2026-09-10",
+        "is_reconciled": false,
+        "payment_method_id": 4
+      },
+      {
+        "merchant": "Sushi Palace",
+        "note": null,
+        "id": 62,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-09-12",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Sold a desk",
+        "note": null,
+        "id": 63,
+        "transaction_type": "INCOME",
+        "posted_date": null,
+        "logged_date": "2026-09-12",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Amex Blue",
+        "note": "payment for Amex Blue account",
+        "id": 64,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-09-13",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Amex Blue",
+        "note": "payment for Amex Blue account",
+        "id": 65,
+        "transaction_type": "INCOME",
+        "posted_date": null,
+        "logged_date": "2026-09-13",
+        "is_reconciled": false,
+        "payment_method_id": 3
+      },
+      {
+        "merchant": "Verizon",
+        "note": null,
+        "id": 66,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-09-16",
+        "is_reconciled": false,
+        "payment_method_id": 3
+      },
+      {
+        "merchant": "Acme Corp Paycheck",
+        "note": null,
+        "id": 67,
+        "transaction_type": "INCOME",
+        "posted_date": null,
+        "logged_date": "2026-09-18",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Groceries",
+        "note": null,
+        "id": 68,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-18",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Gas",
+        "note": null,
+        "id": 69,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-18",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Household",
+        "note": null,
+        "id": 70,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-18",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Dining Out",
+        "note": null,
+        "id": 71,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-18",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Skincare",
+        "note": null,
+        "id": 72,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-18",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Entertainment",
+        "note": null,
+        "id": 73,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-18",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Best Buy Laptop - 12",
+        "note": null,
+        "id": 74,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-18",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Emergency Fund",
+        "note": null,
+        "id": 75,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-18",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Vacation",
+        "note": null,
+        "id": 76,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-09-18",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Whole Foods",
+        "note": null,
+        "id": 77,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-09-19",
+        "is_reconciled": false,
+        "payment_method_id": 3
+      },
+      {
+        "merchant": "Chevron",
+        "note": null,
+        "id": 78,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-09-22",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Sunday Brunch Cafe",
+        "note": null,
+        "id": 79,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-09-24",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Sephora",
+        "note": null,
+        "id": 80,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-09-27",
+        "is_reconciled": false,
+        "payment_method_id": 2
+      },
+      {
+        "merchant": "Chase Sapphire",
+        "note": "payment for Chase Sapphire account",
+        "id": 81,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-09-30",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Chase Sapphire",
+        "note": "payment for Chase Sapphire account",
+        "id": 82,
+        "transaction_type": "INCOME",
+        "posted_date": null,
+        "logged_date": "2026-09-30",
+        "is_reconciled": false,
+        "payment_method_id": 2
+      },
+      {
+        "merchant": "Acme Corp Paycheck",
+        "note": null,
+        "id": 83,
+        "transaction_type": "INCOME",
+        "posted_date": null,
+        "logged_date": "2026-10-02",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Rent",
+        "note": null,
+        "id": 84,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-10-02",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Utilities",
+        "note": null,
+        "id": 85,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-10-02",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Phone Bill",
+        "note": null,
+        "id": 86,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-10-02",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Honda Civic Loan",
+        "note": null,
+        "id": 87,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-10-02",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Groceries",
+        "note": null,
+        "id": 88,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-10-02",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Gas",
+        "note": null,
+        "id": 89,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-10-02",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Dining Out",
+        "note": null,
+        "id": 90,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-10-02",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Best Buy Laptop - 12",
+        "note": null,
+        "id": 91,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-10-02",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Emergency Fund",
+        "note": null,
+        "id": 92,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-10-02",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Vacation",
+        "note": null,
+        "id": 93,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-10-02",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Entertainment -> Skincare",
+        "note": null,
+        "id": 94,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-10-03",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Landlord",
+        "note": null,
+        "id": 95,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-10-05",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Nobu",
+        "note": "Friend's birthday dinner, went over budget",
+        "id": 96,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-10-06",
+        "is_reconciled": false,
+        "payment_method_id": 2
+      },
+      {
+        "merchant": "Honda Civic Loan",
+        "note": "payment for Honda Civic Loan account",
+        "id": 98,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-10-09",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Honda Civic Loan",
+        "note": "payment for Honda Civic Loan account",
+        "id": 99,
+        "transaction_type": "INCOME",
+        "posted_date": null,
+        "logged_date": "2026-10-09",
+        "is_reconciled": false,
+        "payment_method_id": 4
+      },
+      {
+        "merchant": "Publix",
+        "note": "[REVERSED] actual groceries and a pub sub",
+        "id": 100,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-10-20",
+        "is_reconciled": false,
+        "payment_method_id": 3
+      },
+      {
+        "merchant": "Shell",
+        "note": "10 gallons of Premium Rip wallet",
+        "id": 97,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-10-08",
+        "is_reconciled": true,
+        "payment_method_id": 2
+      },
+      {
+        "merchant": "Reversal: Publix",
+        "note": "Reversal of transaction #100",
+        "id": 101,
+        "transaction_type": "REVERSAL",
+        "posted_date": null,
+        "logged_date": "2026-10-20",
+        "is_reconciled": false,
+        "payment_method_id": 3
+      },
+      {
+        "merchant": "HomeGoods",
+        "note": null,
+        "id": 103,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-10-20",
+        "is_reconciled": true,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Trader Joes",
+        "note": "bought a bunch of frozen food",
+        "id": 102,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-10-20",
+        "is_reconciled": true,
+        "payment_method_id": 3
+      },
+      {
+        "merchant": "Aaptiv",
+        "note": "Gym membership",
+        "id": 104,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-10-01",
+        "is_reconciled": false,
+        "payment_method_id": 3
+      },
+      {
+        "merchant": "transfer Unassigned -> Honda Civic Loan",
+        "note": null,
+        "id": 105,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-10-20",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Interest Earned",
+        "note": "Interest Earned",
+        "id": 106,
+        "transaction_type": "INTEREST_EARNED",
+        "posted_date": null,
+        "logged_date": "2026-10-20",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Honda Civic Loan",
+        "note": "payment for Honda Civic Loan account",
+        "id": 107,
+        "transaction_type": "EXPENSE",
+        "posted_date": null,
+        "logged_date": "2026-10-20",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "Honda Civic Loan",
+        "note": "payment for Honda Civic Loan account",
+        "id": 108,
+        "transaction_type": "INCOME",
+        "posted_date": null,
+        "logged_date": "2026-10-20",
+        "is_reconciled": false,
+        "payment_method_id": 4
+      },
+      {
+        "merchant": "transfer Unassigned -> Dining Out",
+        "note": null,
+        "id": 109,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-10-20",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      },
+      {
+        "merchant": "transfer Unassigned -> Entertainment",
+        "note": null,
+        "id": 110,
+        "transaction_type": "TRANSFER",
+        "posted_date": null,
+        "logged_date": "2026-10-20",
+        "is_reconciled": false,
+        "payment_method_id": 1
+      }
+    ],
+    "envelope_split": [
+      {
+        "amount": "8400.00",
+        "id": 1,
+        "envelope_id": 3,
+        "transaction_id": 1
+      },
+      {
+        "amount": "2400.00",
+        "id": 2,
+        "envelope_id": 1,
+        "transaction_id": 2
+      },
+      {
+        "amount": "-1200.00",
+        "id": 3,
+        "envelope_id": 1,
+        "transaction_id": 3
+      },
+      {
+        "amount": "1200.00",
+        "id": 4,
+        "envelope_id": 5,
+        "transaction_id": 3
+      },
+      {
+        "amount": "-150.00",
+        "id": 5,
+        "envelope_id": 1,
+        "transaction_id": 4
+      },
+      {
+        "amount": "150.00",
+        "id": 6,
+        "envelope_id": 6,
+        "transaction_id": 4
+      },
+      {
+        "amount": "-70.00",
+        "id": 7,
+        "envelope_id": 1,
+        "transaction_id": 5
+      },
+      {
+        "amount": "70.00",
+        "id": 8,
+        "envelope_id": 7,
+        "transaction_id": 5
+      },
+      {
+        "amount": "-285.00",
+        "id": 9,
+        "envelope_id": 1,
+        "transaction_id": 6
+      },
+      {
+        "amount": "285.00",
+        "id": 10,
+        "envelope_id": 4,
+        "transaction_id": 6
+      },
+      {
+        "amount": "-250.00",
+        "id": 11,
+        "envelope_id": 1,
+        "transaction_id": 7
+      },
+      {
+        "amount": "250.00",
+        "id": 12,
+        "envelope_id": 8,
+        "transaction_id": 7
+      },
+      {
+        "amount": "-60.00",
+        "id": 13,
+        "envelope_id": 1,
+        "transaction_id": 8
+      },
+      {
+        "amount": "60.00",
+        "id": 14,
+        "envelope_id": 9,
+        "transaction_id": 8
+      },
+      {
+        "amount": "-50.00",
+        "id": 15,
+        "envelope_id": 1,
+        "transaction_id": 9
+      },
+      {
+        "amount": "50.00",
+        "id": 16,
+        "envelope_id": 10,
+        "transaction_id": 9
+      },
+      {
+        "amount": "-60.00",
+        "id": 17,
+        "envelope_id": 1,
+        "transaction_id": 10
+      },
+      {
+        "amount": "60.00",
+        "id": 18,
+        "envelope_id": 12,
+        "transaction_id": 10
+      },
+      {
+        "amount": "-40.00",
+        "id": 19,
+        "envelope_id": 1,
+        "transaction_id": 11
+      },
+      {
+        "amount": "40.00",
+        "id": 20,
+        "envelope_id": 11,
+        "transaction_id": 11
+      },
+      {
+        "amount": "-40.00",
+        "id": 21,
+        "envelope_id": 1,
+        "transaction_id": 12
+      },
+      {
+        "amount": "40.00",
+        "id": 22,
+        "envelope_id": 13,
+        "transaction_id": 12
+      },
+      {
+        "amount": "-150.00",
+        "id": 23,
+        "envelope_id": 1,
+        "transaction_id": 13
+      },
+      {
+        "amount": "150.00",
+        "id": 24,
+        "envelope_id": 14,
+        "transaction_id": 13
+      },
+      {
+        "amount": "-40.00",
+        "id": 25,
+        "envelope_id": 1,
+        "transaction_id": 14
+      },
+      {
+        "amount": "40.00",
+        "id": 26,
+        "envelope_id": 15,
+        "transaction_id": 14
+      },
+      {
+        "amount": "-1200.00",
+        "id": 27,
+        "envelope_id": 5,
+        "transaction_id": 15
+      },
+      {
+        "amount": "-58.40",
+        "id": 28,
+        "envelope_id": 8,
+        "transaction_id": 16
+      },
+      {
+        "amount": "-41.25",
+        "id": 29,
+        "envelope_id": 8,
+        "transaction_id": 17
+      },
+      {
+        "amount": "-27.80",
+        "id": 30,
+        "envelope_id": 11,
+        "transaction_id": 17
+      },
+      {
+        "amount": "-18.99",
+        "id": 31,
+        "envelope_id": 10,
+        "transaction_id": 17
+      },
+      {
+        "amount": "88.04",
+        "id": 32,
+        "envelope_id": 2,
+        "transaction_id": 17
+      },
+      {
+        "amount": "-285.00",
+        "id": 33,
+        "envelope_id": 4,
+        "transaction_id": 18
+      },
+      {
+        "amount": "285.00",
+        "id": 34,
+        "envelope_id": 3,
+        "transaction_id": 19
+      },
+      {
+        "amount": "-92.15",
+        "id": 35,
+        "envelope_id": 6,
+        "transaction_id": 20
+      },
+      {
+        "amount": "-38.50",
+        "id": 36,
+        "envelope_id": 9,
+        "transaction_id": 21
+      },
+      {
+        "amount": "38.50",
+        "id": 37,
+        "envelope_id": 2,
+        "transaction_id": 21
+      },
+      {
+        "amount": "-15.49",
+        "id": 38,
+        "envelope_id": 13,
+        "transaction_id": 22
+      },
+      {
+        "amount": "15.49",
+        "id": 39,
+        "envelope_id": 2,
+        "transaction_id": 22
+      },
+      {
+        "amount": "-14.75",
+        "id": 40,
+        "envelope_id": 12,
+        "transaction_id": 23
+      },
+      {
+        "amount": "14.75",
+        "id": 41,
+        "envelope_id": 2,
+        "transaction_id": 23
+      },
+      {
+        "amount": "-76.30",
+        "id": 42,
+        "envelope_id": 8,
+        "transaction_id": 24
+      },
+      {
+        "amount": "76.30",
+        "id": 43,
+        "envelope_id": 2,
+        "transaction_id": 24
+      },
+      {
+        "amount": "-70.00",
+        "id": 44,
+        "envelope_id": 7,
+        "transaction_id": 25
+      },
+      {
+        "amount": "70.00",
+        "id": 45,
+        "envelope_id": 2,
+        "transaction_id": 25
+      },
+      {
+        "amount": "2400.00",
+        "id": 46,
+        "envelope_id": 1,
+        "transaction_id": 26
+      },
+      {
+        "amount": "-220.00",
+        "id": 47,
+        "envelope_id": 1,
+        "transaction_id": 27
+      },
+      {
+        "amount": "220.00",
+        "id": 48,
+        "envelope_id": 8,
+        "transaction_id": 27
+      },
+      {
+        "amount": "-60.00",
+        "id": 49,
+        "envelope_id": 1,
+        "transaction_id": 28
+      },
+      {
+        "amount": "60.00",
+        "id": 50,
+        "envelope_id": 9,
+        "transaction_id": 28
+      },
+      {
+        "amount": "-50.00",
+        "id": 51,
+        "envelope_id": 1,
+        "transaction_id": 29
+      },
+      {
+        "amount": "50.00",
+        "id": 52,
+        "envelope_id": 10,
+        "transaction_id": 29
+      },
+      {
+        "amount": "-60.00",
+        "id": 53,
+        "envelope_id": 1,
+        "transaction_id": 30
+      },
+      {
+        "amount": "60.00",
+        "id": 54,
+        "envelope_id": 12,
+        "transaction_id": 30
+      },
+      {
+        "amount": "-50.00",
+        "id": 55,
+        "envelope_id": 1,
+        "transaction_id": 31
+      },
+      {
+        "amount": "50.00",
+        "id": 56,
+        "envelope_id": 11,
+        "transaction_id": 31
+      },
+      {
+        "amount": "-40.00",
+        "id": 57,
+        "envelope_id": 1,
+        "transaction_id": 32
+      },
+      {
+        "amount": "40.00",
+        "id": 58,
+        "envelope_id": 13,
+        "transaction_id": 32
+      },
+      {
+        "amount": "-400.00",
+        "id": 59,
+        "envelope_id": 1,
+        "transaction_id": 33
+      },
+      {
+        "amount": "400.00",
+        "id": 60,
+        "envelope_id": 14,
+        "transaction_id": 33
+      },
+      {
+        "amount": "-300.00",
+        "id": 61,
+        "envelope_id": 1,
+        "transaction_id": 34
+      },
+      {
+        "amount": "300.00",
+        "id": 62,
+        "envelope_id": 15,
+        "transaction_id": 34
+      },
+      {
+        "amount": "-112.30",
+        "id": 63,
+        "envelope_id": 8,
+        "transaction_id": 35
+      },
+      {
+        "amount": "-46.75",
+        "id": 64,
+        "envelope_id": 10,
+        "transaction_id": 35
+      },
+      {
+        "amount": "-54.20",
+        "id": 65,
+        "envelope_id": 12,
+        "transaction_id": 36
+      },
+      {
+        "amount": "54.20",
+        "id": 66,
+        "envelope_id": 2,
+        "transaction_id": 36
+      },
+      {
+        "amount": "-40.00",
+        "id": 67,
+        "envelope_id": 9,
+        "transaction_id": 37
+      },
+      {
+        "amount": "-33.40",
+        "id": 68,
+        "envelope_id": 10,
+        "transaction_id": 38
+      },
+      {
+        "amount": "-17.99",
+        "id": 69,
+        "envelope_id": 13,
+        "transaction_id": 38
+      },
+      {
+        "amount": "51.39",
+        "id": 70,
+        "envelope_id": 2,
+        "transaction_id": 38
+      },
+      {
+        "amount": "-28.00",
+        "id": 71,
+        "envelope_id": 13,
+        "transaction_id": 39
+      },
+      {
+        "amount": "-58.00",
+        "id": 72,
+        "envelope_id": 11,
+        "transaction_id": 40
+      },
+      {
+        "amount": "58.00",
+        "id": 73,
+        "envelope_id": 2,
+        "transaction_id": 40
+      },
+      {
+        "amount": "-25.00",
+        "id": 74,
+        "envelope_id": 12,
+        "transaction_id": 41
+      },
+      {
+        "amount": "25.00",
+        "id": 75,
+        "envelope_id": 8,
+        "transaction_id": 41
+      },
+      {
+        "amount": "9.85",
+        "id": 76,
+        "envelope_id": 3,
+        "transaction_id": 42
+      },
+      {
+        "amount": "-200.00",
+        "id": 77,
+        "envelope_id": 2,
+        "transaction_id": 43
+      },
+      {
+        "amount": "200.00",
+        "id": 78,
+        "envelope_id": 3,
+        "transaction_id": 44
+      },
+      {
+        "amount": "2400.00",
+        "id": 79,
+        "envelope_id": 1,
+        "transaction_id": 45
+      },
+      {
+        "amount": "-1200.00",
+        "id": 80,
+        "envelope_id": 1,
+        "transaction_id": 46
+      },
+      {
+        "amount": "1200.00",
+        "id": 81,
+        "envelope_id": 5,
+        "transaction_id": 46
+      },
+      {
+        "amount": "-150.00",
+        "id": 82,
+        "envelope_id": 1,
+        "transaction_id": 47
+      },
+      {
+        "amount": "150.00",
+        "id": 83,
+        "envelope_id": 6,
+        "transaction_id": 47
+      },
+      {
+        "amount": "-70.00",
+        "id": 84,
+        "envelope_id": 1,
+        "transaction_id": 48
+      },
+      {
+        "amount": "70.00",
+        "id": 85,
+        "envelope_id": 7,
+        "transaction_id": 48
+      },
+      {
+        "amount": "-285.00",
+        "id": 86,
+        "envelope_id": 1,
+        "transaction_id": 49
+      },
+      {
+        "amount": "285.00",
+        "id": 87,
+        "envelope_id": 4,
+        "transaction_id": 49
+      },
+      {
+        "amount": "-220.00",
+        "id": 88,
+        "envelope_id": 1,
+        "transaction_id": 50
+      },
+      {
+        "amount": "220.00",
+        "id": 89,
+        "envelope_id": 8,
+        "transaction_id": 50
+      },
+      {
+        "amount": "-60.00",
+        "id": 90,
+        "envelope_id": 1,
+        "transaction_id": 51
+      },
+      {
+        "amount": "60.00",
+        "id": 91,
+        "envelope_id": 9,
+        "transaction_id": 51
+      },
+      {
+        "amount": "-40.00",
+        "id": 92,
+        "envelope_id": 1,
+        "transaction_id": 52
+      },
+      {
+        "amount": "40.00",
+        "id": 93,
+        "envelope_id": 10,
+        "transaction_id": 52
+      },
+      {
+        "amount": "-60.00",
+        "id": 94,
+        "envelope_id": 1,
+        "transaction_id": 53
+      },
+      {
+        "amount": "60.00",
+        "id": 95,
+        "envelope_id": 12,
+        "transaction_id": 53
+      },
+      {
+        "amount": "-300.00",
+        "id": 96,
+        "envelope_id": 1,
+        "transaction_id": 54
+      },
+      {
+        "amount": "300.00",
+        "id": 97,
+        "envelope_id": 14,
+        "transaction_id": 54
+      },
+      {
+        "amount": "-200.00",
+        "id": 98,
+        "envelope_id": 1,
+        "transaction_id": 55
+      },
+      {
+        "amount": "200.00",
+        "id": 99,
+        "envelope_id": 15,
+        "transaction_id": 55
+      },
+      {
+        "amount": "-1200.00",
+        "id": 100,
+        "envelope_id": 5,
+        "transaction_id": 56
+      },
+      {
+        "amount": "1200.00",
+        "id": 101,
+        "envelope_id": 16,
+        "transaction_id": 57
+      },
+      {
+        "amount": "-1200.00",
+        "id": 102,
+        "envelope_id": 16,
+        "transaction_id": 57
+      },
+      {
+        "amount": "-88.40",
+        "id": 103,
+        "envelope_id": 6,
+        "transaction_id": 58
+      },
+      {
+        "amount": "-63.10",
+        "id": 104,
+        "envelope_id": 8,
+        "transaction_id": 59
+      },
+      {
+        "amount": "-24.50",
+        "id": 105,
+        "envelope_id": 10,
+        "transaction_id": 59
+      },
+      {
+        "amount": "87.60",
+        "id": 106,
+        "envelope_id": 2,
+        "transaction_id": 59
+      },
+      {
+        "amount": "-285.00",
+        "id": 107,
+        "envelope_id": 4,
+        "transaction_id": 60
+      },
+      {
+        "amount": "285.00",
+        "id": 108,
+        "envelope_id": 3,
+        "transaction_id": 61
+      },
+      {
+        "amount": "-47.80",
+        "id": 109,
+        "envelope_id": 12,
+        "transaction_id": 62
+      },
+      {
+        "amount": "150.00",
+        "id": 110,
+        "envelope_id": 1,
+        "transaction_id": 63
+      },
+      {
+        "amount": "-90.00",
+        "id": 111,
+        "envelope_id": 2,
+        "transaction_id": 64
+      },
+      {
+        "amount": "90.00",
+        "id": 112,
+        "envelope_id": 3,
+        "transaction_id": 65
+      },
+      {
+        "amount": "-70.00",
+        "id": 113,
+        "envelope_id": 7,
+        "transaction_id": 66
+      },
+      {
+        "amount": "70.00",
+        "id": 114,
+        "envelope_id": 2,
+        "transaction_id": 66
+      },
+      {
+        "amount": "2400.00",
+        "id": 115,
+        "envelope_id": 1,
+        "transaction_id": 67
+      },
+      {
+        "amount": "-220.00",
+        "id": 116,
+        "envelope_id": 1,
+        "transaction_id": 68
+      },
+      {
+        "amount": "220.00",
+        "id": 117,
+        "envelope_id": 8,
+        "transaction_id": 68
+      },
+      {
+        "amount": "-60.00",
+        "id": 118,
+        "envelope_id": 1,
+        "transaction_id": 69
+      },
+      {
+        "amount": "60.00",
+        "id": 119,
+        "envelope_id": 9,
+        "transaction_id": 69
+      },
+      {
+        "amount": "-50.00",
+        "id": 120,
+        "envelope_id": 1,
+        "transaction_id": 70
+      },
+      {
+        "amount": "50.00",
+        "id": 121,
+        "envelope_id": 10,
+        "transaction_id": 70
+      },
+      {
+        "amount": "-60.00",
+        "id": 122,
+        "envelope_id": 1,
+        "transaction_id": 71
+      },
+      {
+        "amount": "60.00",
+        "id": 123,
+        "envelope_id": 12,
+        "transaction_id": 71
+      },
+      {
+        "amount": "-40.00",
+        "id": 124,
+        "envelope_id": 1,
+        "transaction_id": 72
+      },
+      {
+        "amount": "40.00",
+        "id": 125,
+        "envelope_id": 11,
+        "transaction_id": 72
+      },
+      {
+        "amount": "-40.00",
+        "id": 126,
+        "envelope_id": 1,
+        "transaction_id": 73
+      },
+      {
+        "amount": "40.00",
+        "id": 127,
+        "envelope_id": 13,
+        "transaction_id": 73
+      },
+      {
+        "amount": "-100.00",
+        "id": 128,
+        "envelope_id": 1,
+        "transaction_id": 74
+      },
+      {
+        "amount": "100.00",
+        "id": 129,
+        "envelope_id": 16,
+        "transaction_id": 74
+      },
+      {
+        "amount": "-400.00",
+        "id": 130,
+        "envelope_id": 1,
+        "transaction_id": 75
+      },
+      {
+        "amount": "400.00",
+        "id": 131,
+        "envelope_id": 14,
+        "transaction_id": 75
+      },
+      {
+        "amount": "-300.00",
+        "id": 132,
+        "envelope_id": 1,
+        "transaction_id": 76
+      },
+      {
+        "amount": "300.00",
+        "id": 133,
+        "envelope_id": 15,
+        "transaction_id": 76
+      },
+      {
+        "amount": "-68.90",
+        "id": 134,
+        "envelope_id": 8,
+        "transaction_id": 77
+      },
+      {
+        "amount": "68.90",
+        "id": 135,
+        "envelope_id": 2,
+        "transaction_id": 77
+      },
+      {
+        "amount": "-44.00",
+        "id": 136,
+        "envelope_id": 9,
+        "transaction_id": 78
+      },
+      {
+        "amount": "-38.00",
+        "id": 137,
+        "envelope_id": 12,
+        "transaction_id": 79
+      },
+      {
+        "amount": "-34.50",
+        "id": 138,
+        "envelope_id": 11,
+        "transaction_id": 80
+      },
+      {
+        "amount": "34.50",
+        "id": 139,
+        "envelope_id": 2,
+        "transaction_id": 80
+      },
+      {
+        "amount": "-150.00",
+        "id": 140,
+        "envelope_id": 2,
+        "transaction_id": 81
+      },
+      {
+        "amount": "150.00",
+        "id": 141,
+        "envelope_id": 3,
+        "transaction_id": 82
+      },
+      {
+        "amount": "2400.00",
+        "id": 142,
+        "envelope_id": 1,
+        "transaction_id": 83
+      },
+      {
+        "amount": "-1200.00",
+        "id": 143,
+        "envelope_id": 1,
+        "transaction_id": 84
+      },
+      {
+        "amount": "1200.00",
+        "id": 144,
+        "envelope_id": 5,
+        "transaction_id": 84
+      },
+      {
+        "amount": "-150.00",
+        "id": 145,
+        "envelope_id": 1,
+        "transaction_id": 85
+      },
+      {
+        "amount": "150.00",
+        "id": 146,
+        "envelope_id": 6,
+        "transaction_id": 85
+      },
+      {
+        "amount": "-70.00",
+        "id": 147,
+        "envelope_id": 1,
+        "transaction_id": 86
+      },
+      {
+        "amount": "70.00",
+        "id": 148,
+        "envelope_id": 7,
+        "transaction_id": 86
+      },
+      {
+        "amount": "-285.00",
+        "id": 149,
+        "envelope_id": 1,
+        "transaction_id": 87
+      },
+      {
+        "amount": "285.00",
+        "id": 150,
+        "envelope_id": 4,
+        "transaction_id": 87
+      },
+      {
+        "amount": "-220.00",
+        "id": 151,
+        "envelope_id": 1,
+        "transaction_id": 88
+      },
+      {
+        "amount": "220.00",
+        "id": 152,
+        "envelope_id": 8,
+        "transaction_id": 88
+      },
+      {
+        "amount": "-60.00",
+        "id": 153,
+        "envelope_id": 1,
+        "transaction_id": 89
+      },
+      {
+        "amount": "60.00",
+        "id": 154,
+        "envelope_id": 9,
+        "transaction_id": 89
+      },
+      {
+        "amount": "-50.00",
+        "id": 155,
+        "envelope_id": 1,
+        "transaction_id": 90
+      },
+      {
+        "amount": "50.00",
+        "id": 156,
+        "envelope_id": 12,
+        "transaction_id": 90
+      },
+      {
+        "amount": "-100.00",
+        "id": 157,
+        "envelope_id": 1,
+        "transaction_id": 91
+      },
+      {
+        "amount": "100.00",
+        "id": 158,
+        "envelope_id": 16,
+        "transaction_id": 91
+      },
+      {
+        "amount": "-300.00",
+        "id": 159,
+        "envelope_id": 1,
+        "transaction_id": 92
+      },
+      {
+        "amount": "300.00",
+        "id": 160,
+        "envelope_id": 14,
+        "transaction_id": 92
+      },
+      {
+        "amount": "-200.00",
+        "id": 161,
+        "envelope_id": 1,
+        "transaction_id": 93
+      },
+      {
+        "amount": "200.00",
+        "id": 162,
+        "envelope_id": 15,
+        "transaction_id": 93
+      },
+      {
+        "amount": "-15.00",
+        "id": 163,
+        "envelope_id": 13,
+        "transaction_id": 94
+      },
+      {
+        "amount": "15.00",
+        "id": 164,
+        "envelope_id": 11,
+        "transaction_id": 94
+      },
+      {
+        "amount": "-1200.00",
+        "id": 165,
+        "envelope_id": 5,
+        "transaction_id": 95
+      },
+      {
+        "amount": "-189.60",
+        "id": 166,
+        "envelope_id": 12,
+        "transaction_id": 96
+      },
+      {
+        "amount": "189.60",
+        "id": 167,
+        "envelope_id": 2,
+        "transaction_id": 96
+      },
+      {
+        "amount": "-41.75",
+        "id": 168,
+        "envelope_id": 9,
+        "transaction_id": 97
+      },
+      {
+        "amount": "41.75",
+        "id": 169,
+        "envelope_id": 2,
+        "transaction_id": 97
+      },
+      {
+        "amount": "-285.00",
+        "id": 170,
+        "envelope_id": 4,
+        "transaction_id": 98
+      },
+      {
+        "amount": "285.00",
+        "id": 171,
+        "envelope_id": 3,
+        "transaction_id": 99
+      },
+      {
+        "amount": "-17.00",
+        "id": 172,
+        "envelope_id": 8,
+        "transaction_id": 100
+      },
+      {
+        "amount": "-10.65",
+        "id": 173,
+        "envelope_id": 12,
+        "transaction_id": 100
+      },
+      {
+        "amount": "27.65",
+        "id": 174,
+        "envelope_id": 2,
+        "transaction_id": 100
+      },
+      {
+        "amount": "17.00",
+        "id": 175,
+        "envelope_id": 8,
+        "transaction_id": 101
+      },
+      {
+        "amount": "10.65",
+        "id": 176,
+        "envelope_id": 12,
+        "transaction_id": 101
+      },
+      {
+        "amount": "-27.65",
+        "id": 177,
+        "envelope_id": 2,
+        "transaction_id": 101
+      },
+      {
+        "amount": "-50.00",
+        "id": 182,
+        "envelope_id": 8,
+        "transaction_id": 102
+      },
+      {
+        "amount": "50.00",
+        "id": 183,
+        "envelope_id": 2,
+        "transaction_id": 102
+      },
+      {
+        "amount": "-100.00",
+        "id": 184,
+        "envelope_id": 13,
+        "transaction_id": 103
+      },
+      {
+        "amount": "-39.99",
+        "id": 187,
+        "envelope_id": 10,
+        "transaction_id": 104
+      },
+      {
+        "amount": "39.99",
+        "id": 188,
+        "envelope_id": 2,
+        "transaction_id": 104
+      },
+      {
+        "amount": "-250.00",
+        "id": 189,
+        "envelope_id": 1,
+        "transaction_id": 105
+      },
+      {
+        "amount": "250.00",
+        "id": 190,
+        "envelope_id": 4,
+        "transaction_id": 105
+      },
+      {
+        "amount": "10.97",
+        "id": 191,
+        "envelope_id": 1,
+        "transaction_id": 106
+      },
+      {
+        "amount": "-200.00",
+        "id": 192,
+        "envelope_id": 4,
+        "transaction_id": 107
+      },
+      {
+        "amount": "200.00",
+        "id": 193,
+        "envelope_id": 3,
+        "transaction_id": 108
+      },
+      {
+        "amount": "-79.35",
+        "id": 194,
+        "envelope_id": 1,
+        "transaction_id": 109
+      },
+      {
+        "amount": "79.35",
+        "id": 195,
+        "envelope_id": 12,
+        "transaction_id": 109
+      },
+      {
+        "amount": "-56.48",
+        "id": 196,
+        "envelope_id": 1,
+        "transaction_id": 110
+      },
+      {
+        "amount": "56.48",
+        "id": 197,
+        "envelope_id": 13,
+        "transaction_id": 110
+      }
+    ]
+  }
+}

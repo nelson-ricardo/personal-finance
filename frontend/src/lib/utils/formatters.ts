@@ -24,3 +24,14 @@ export function getOrdinalSuffix(day: number | null | undefined): string {
 	if (j === 3 && k !== 13) return `${day}rd`;
 	return `${day}th`;
 }
+
+/**
+ * Returns a date formatted as YYYY-MM-DD using local time instead of UTC,
+ * preventing off-by-one / next-day timezone shifts caused by .toISOString().
+ */
+export function getLocalDateString(d: Date = new Date()): string {
+	const year = d.getFullYear();
+	const month = String(d.getMonth() + 1).padStart(2, '0');
+	const day = String(d.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+}

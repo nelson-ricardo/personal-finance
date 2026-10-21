@@ -157,8 +157,14 @@ def add_financed_transaction(session: Session, transaction: FinancedTransaction)
     else:
         envelope_name = f"{transaction.merchant.strip()} - {transaction.term}"
 
-    fixed_cat = category_repo.get_category_by_name(session, "Fixed Monthly Expenses")
-    cat_id = fixed_cat.id if fixed_cat else None
+    cat_id = None
+    if getattr(transaction, "category_name", None):
+        cat_name = transaction.category_name.strip()
+        if cat_name:
+            cat = category_repo.get_category_by_name(session, cat_name)
+            if cat:
+                cat_id = cat.id
+
     envelope_used = envelope_repo.get_or_create_envelope(
         session,
         EnvelopeBase(

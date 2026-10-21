@@ -89,6 +89,10 @@ class AccountCreate(AccountBase):
         default=None,
         description="Alias for starting_balance",
     )
+    category_name: Optional[str] = Field(
+        default=None,
+        description="Optional category group to assign the account's payment envelope to (e.g. for loans)",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -110,7 +114,13 @@ class AccountWithBalance(AccountBase):
         description="Derived balance (liquid cash assets or outstanding debt owed)",
     )
     envelope_id: Optional[int] = Field(
-        default=None, description="Linked CC payment envelope ID"
+        default=None, description="Linked payment envelope ID"
+    )
+    envelope_name: Optional[str] = Field(
+        default=None, description="Linked envelope display name"
+    )
+    envelope_balance: Optional[Decimal] = Field(
+        default=None, description="Linked envelope current available balance"
     )
 
 

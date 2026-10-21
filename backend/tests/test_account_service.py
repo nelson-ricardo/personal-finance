@@ -1,12 +1,13 @@
 from decimal import Decimal
 import pytest
-from budget_app.repositories import account_repo, envelope_repo
+from budget_app.repositories import account_repo, category_repo, envelope_repo
 from budget_app.schemas import (
     AccountBase,
     AccountCreate,
     AccountType,
     AccountUpdate,
     EnvelopeBase,
+    EnvelopeCategoryBase,
     EnvelopeSplitRequest,
     TransactionRequest,
     TransactionType,
@@ -135,6 +136,36 @@ class TestCreateAccount:
                 account_type=AccountType.CREDIT_CARD,
                 due_date=32,
             )
+
+    def test_create_loan_account_with_custom_category(self, session):
+        cat = category_repo.get_or_create_category(
+            session, EnvelopeCategoryBase(name="Debt Obligations", order_index=10)
+        )
+        session.commit()
+
+        acc = account_service.create_account(
+            session,
+            AccountCreate(
+                name="Custom Cat Car Loan",
+                account_type=AccountType.LOAN,
+                category_name="Debt Obligations",
+            ),
+        )
+        assert acc.envelope is not None
+        assert acc.envelope.name == "Custom Cat Car Loan"
+        assert acc.envelope.category_id == cat.id
+
+    def test_create_loan_account_without_category_leaves_uncategorized(self, session):
+        acc = account_service.create_account(
+            session,
+            AccountCreate(
+                name="Uncategorized Student Loan",
+                account_type=AccountType.LOAN,
+            ),
+        )
+        assert acc.envelope is not None
+        assert acc.envelope.name == "Uncategorized Student Loan"
+        assert acc.envelope.category_id is None
 
 
 class TestStartingBalanceAndDerivedBalance:

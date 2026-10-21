@@ -8,7 +8,10 @@ export const EnvelopeSchema = z.object({
 	system_role: z.string().nullable().optional(),
 	category_id: z.number().nullable().optional(),
 	category_name: z.string().nullable().optional(),
-	balance: z.string().default('0.00')
+	balance: z
+		.union([z.string(), z.number()])
+		.transform((val) => String(val))
+		.default('0.00')
 });
 export type Envelope = z.infer<typeof EnvelopeSchema>;
 
@@ -17,7 +20,10 @@ export const EnvelopeCategoryWithEnvelopesSchema = z.object({
 	name: z.string(),
 	order_index: z.number().default(0),
 	is_active: z.boolean().default(true),
-	total_balance: z.string().default('0.00'),
+	total_balance: z
+		.union([z.string(), z.number()])
+		.transform((val) => String(val))
+		.default('0.00'),
 	envelopes: z.array(EnvelopeSchema).default([])
 });
 export type EnvelopeCategoryWithEnvelopes = z.infer<typeof EnvelopeCategoryWithEnvelopesSchema>;

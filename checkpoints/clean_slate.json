@@ -1,0 +1,66 @@
+{
+  "version": "1.0",
+  "id": "clean_slate",
+  "name": "Clean Slate (Baseline Seed)",
+  "filename": "clean_slate.json",
+  "created_at": "2026-10-21T21:43:49.989511+00:00",
+  "stats": {
+    "accounts_count": 1,
+    "categories_count": 1,
+    "envelopes_count": 3,
+    "transactions_count": 0,
+    "total_cash": "0.00",
+    "total_debt": "0.00"
+  },
+  "data": {
+    "envelope_category": [
+      {
+        "id": 1,
+        "order_index": 5,
+        "name": "System",
+        "is_active": true
+      }
+    ],
+    "envelope": [
+      {
+        "id": 1,
+        "name": "Unassigned",
+        "system_role": "UNASSIGNED",
+        "note": "default bucket for money coming in",
+        "is_active": true,
+        "category_id": 1
+      },
+      {
+        "id": 2,
+        "name": "Credit Card Payment",
+        "system_role": "CREDIT_CARD_PAYMENT",
+        "note": "holds money allocated to pay off credit card balance",
+        "is_active": true,
+        "category_id": 1
+      },
+      {
+        "id": 3,
+        "name": "Account Adjustment",
+        "system_role": "ACCOUNT_ADJUSTMENT",
+        "note": "system envelope for absorbing account-only balance adjustments",
+        "is_active": true,
+        "category_id": 1
+      }
+    ],
+    "account": [
+      {
+        "id": 1,
+        "name": "Cash",
+        "account_type": "cash",
+        "is_active": true,
+        "total_statement_balance": null,
+        "interest_saving_balance": null,
+        "monthly_payment": null,
+        "due_date": null,
+        "envelope_id": null
+      }
+    ],
+    "transaction": [],
+    "envelope_split": []
+  }
+}
