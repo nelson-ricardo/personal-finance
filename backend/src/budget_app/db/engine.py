@@ -19,7 +19,11 @@ if DATABASE_URL is None:
     raise LookupError("Cannot find database url in environment variable")
 
 # Global SQLAlchemy/SQLModel engine instance
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=300,
+)
 
 
 def get_session() -> Generator[Session, None, None]:
