@@ -24,6 +24,9 @@ class Transaction(TransactionBase, table=True):
     payment_method_id: Optional[int] = Field(
         default=None, foreign_key="account.id", nullable=False
     )
+    destination_account_id: Optional[int] = Field(
+        default=None, foreign_key="account.id", nullable=True, index=True
+    )
     transaction_type: TransactionType = Field(
         sa_column=Column(
             SQLEnum(TransactionType), nullable=False, default=TransactionType.EXPENSE
@@ -31,7 +34,19 @@ class Transaction(TransactionBase, table=True):
     )
 
     # Link to payment method account
-    account: "Account" = Relationship(back_populates="transactions")
+    account: "Account" = Relationship(
+        back_populates="transactions",
+        sa_relationship_kwargs={
+            "foreign_keys": "[Transaction.payment_method_id]",
+        },
+    )
+
+    # Optional link to destination account (for payments and transfers)
+    destination_account: Optional["Account"] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "[Transaction.destination_account_id]",
+        },
+    )
 
     # One-to-many relationship with child envelope split entries (cascades on delete)
     splits: List["EnvelopeSplit"] = Relationship(

@@ -72,9 +72,15 @@
 
 						<div class="flex items-center gap-1.5 mt-1">
 							<span
-								class="px-2 py-0.5 rounded-md text-[10px] font-medium bg-brand-100 text-brand-800"
+								class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-brand-100 text-brand-800"
 							>
-								{tx.payment_method_name}
+								{#if tx.destination_account_name}
+									<span>{tx.payment_method_name}</span>
+									<span class="text-brand-400">→</span>
+									<span class="font-semibold text-brand-950">{tx.destination_account_name}</span>
+								{:else}
+									<span>{tx.payment_method_name}</span>
+								{/if}
 							</span>
 
 							{#if isFinanced}

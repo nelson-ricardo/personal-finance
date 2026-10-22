@@ -5,6 +5,7 @@
 	import type { Account } from '#lib/schemas/account.ts';
 	import type { EnvelopeCategoryWithEnvelopes } from '#lib/schemas/category.ts';
 	import { getLocalDateString } from '#lib/utils/formatters.ts';
+	import { getUserVisibleCategories } from '#lib/utils/categories.ts';
 
 	let {
 		formData,
@@ -36,12 +37,11 @@
 		invalidateAll: true
 	});
 
-	// Flat list of active envelopes (excluding System category)
+	const displayCategories = $derived(getUserVisibleCategories(categories));
+
+	// Flat list of active user envelopes (including Credit Card Payment, excluding internal Unassigned)
 	const activeEnvelopes = $derived(
-		categories
-			.filter((c) => c.name !== 'System')
-			.flatMap((c) => c.envelopes)
-			.filter((e) => e.is_active)
+		displayCategories.flatMap((c) => c.envelopes).filter((e) => e.is_active)
 	);
 
 	const activeAccounts = $derived(
@@ -196,9 +196,9 @@
 				bind:value={$quickForm.envelope_name}
 				class="w-full px-2.5 py-1.5 rounded-xl border border-brand-300 text-xs font-sans text-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-shadow bg-white"
 			>
-				{#each categories.filter((c) => c.name !== 'System') as cat (cat.id)}
+				{#each displayCategories as cat (cat.id ?? cat.name)}
 					<optgroup label={cat.name}>
-						{#each cat.envelopes.filter((e) => e.is_active) as env (env.id)}
+						{#each cat.envelopes.filter((e) => e.is_active) as env (env.id ?? env.name)}
 							<option value={env.name}>{env.name}</option>
 						{/each}
 					</optgroup>

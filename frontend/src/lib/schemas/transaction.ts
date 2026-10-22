@@ -31,6 +31,8 @@ export const TransactionItemSchema = z.object({
 	is_reconciled: z.boolean().default(false),
 	payment_method_id: z.number(),
 	payment_method_name: z.string(),
+	destination_account_id: z.number().nullable().optional(),
+	destination_account_name: z.string().nullable().optional(),
 	transaction_type: TransactionTypeSchema,
 	total: z.union([z.string(), z.number()]),
 	splits: z.array(EnvelopeSplitSchema).optional()

@@ -24,12 +24,18 @@ class Account(AccountBase, table=True):
     envelope: Optional["Envelope"] = Relationship(back_populates="account")
 
     # One-to-many relationship with transactions where this account was the payment method
-    transactions: List["Transaction"] = Relationship(back_populates="account")
+    transactions: List["Transaction"] = Relationship(
+        back_populates="account",
+        sa_relationship_kwargs={
+            "foreign_keys": "[Transaction.payment_method_id]",
+        },
+    )
 
     @property
     def current_balance(self) -> Decimal:
         """Derived balance accessor computing from transactions or returning cached/in-memory balance."""
         from typing import cast
+
         from sqlalchemy.orm import object_session
         from sqlmodel import Session as SQLModelSession
         sess = object_session(self)
@@ -61,6 +67,7 @@ class Account(AccountBase, table=True):
         if hasattr(self, "_envelope_balance"):
             return self._envelope_balance
         from typing import cast
+
         from sqlalchemy.orm import object_session
         from sqlmodel import Session as SQLModelSession
         sess = object_session(self)

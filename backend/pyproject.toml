@@ -37,5 +37,13 @@ filterwarnings = [
     "ignore::DeprecationWarning:starlette.testclient",
 ]
 
+[tool.ruff]
+line-length = 100
+exclude = [
+    ".venv",
+    "alembic",
+]
+
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+ignore = ["E501"]

@@ -21,7 +21,7 @@ from budget_app.db import (
     init_db,
     seed,
 )
-from budget_app.models import Envelope, EnvelopeSplit, Transaction
+from budget_app.models import Envelope, Transaction
 from budget_app.repositories import envelope_repo
 from budget_app.services import account_service
 

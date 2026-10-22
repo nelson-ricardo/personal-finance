@@ -3,7 +3,7 @@
 from datetime import date
 from decimal import Decimal
 from enum import Enum
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from sqlmodel import Field, SQLModel
 
@@ -40,11 +40,15 @@ class TransactionRequest(TransactionBase):
 
     Attributes:
         payment_method_name: Name of the account used (Cash, Credit Card).
+        destination_account_name: Optional destination account for payments or transfers.
         transaction_type: INCOME, EXPENSE, TRANSFER, or FINANCED.
         splits: Envelope allocations and deduction/addition amounts.
     """
 
     payment_method_name: str = Field(description="Name of the paying or receiving Account")
+    destination_account_name: Optional[str] = Field(
+        default=None, description="Optional destination account name for payments or transfers"
+    )
     transaction_type: TransactionType = Field(description="Type classification of this transaction")
     splits: List[EnvelopeSplitRequest] = Field(
         default_factory=list, description="Envelope allocations and amounts"
@@ -79,6 +83,8 @@ class TransactionResponse(TransactionBase):
     id: int = Field(description="Unique database identifier")
     payment_method_id: int = Field(description="ID of the associated payment account")
     payment_method_name: str = Field(description="Display name of the payment account")
+    destination_account_id: Optional[int] = Field(default=None, description="Optional destination account ID")
+    destination_account_name: Optional[str] = Field(default=None, description="Optional destination account display name")
     transaction_type: TransactionType = Field(description="Transaction type enum")
     total: Decimal = Field(description="Computed positive monetary total of the transaction")
 

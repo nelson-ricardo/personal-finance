@@ -52,10 +52,10 @@ def protected_names() -> tuple[str, ...]:
 
 def build_dev_db(config) -> None:
     """Creates, migrates, bootstraps and seeds the dev databases."""
-    from alembic import command
     from alembic.config import Config
     from sqlmodel import Session
 
+    from alembic import command
     from budget_app.db import (
         database,
         engine,
@@ -127,10 +127,10 @@ def run_dev():
             teardown_dev_db(config)
     else:
         # Running in Docker or standard containerized dev environment
-        from alembic import command
         from alembic.config import Config
         from sqlmodel import Session, select
 
+        from alembic import command
         from budget_app.db import engine
         from budget_app.models import Account
         from budget_app.services import checkpoint_service
@@ -164,10 +164,10 @@ def run_prod():
     """Runs the server in standard/production mode using DATABASE_URL from environment."""
     os.environ["APP_ENV"] = "prod"
 
-    from alembic import command
     from alembic.config import Config
     from sqlmodel import Session, select
 
+    from alembic import command
     from budget_app.db import engine
     from budget_app.models import Account
     from budget_app.services import checkpoint_service

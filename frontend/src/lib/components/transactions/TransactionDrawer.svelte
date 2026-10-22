@@ -10,6 +10,7 @@
 	import type { Account } from '#lib/schemas/account.ts';
 	import type { EnvelopeCategoryWithEnvelopes } from '#lib/schemas/category.ts';
 	import { formatCurrency } from '#lib/utils/formatters.ts';
+	import { getUserVisibleCategories } from '#lib/utils/categories.ts';
 
 	let {
 		open = false,
@@ -82,7 +83,7 @@
 	const creditCardAccounts = $derived(
 		activeAccounts.filter((a) => a.account_type === 'credit_card')
 	);
-	const budgetingCategories = $derived(categories.filter((c) => c.name !== 'System'));
+	const budgetingCategories = $derived(getUserVisibleCategories(categories));
 	const allActiveEnvelopes = $derived(
 		budgetingCategories.flatMap((c) => c.envelopes).filter((e) => e.is_active)
 	);
@@ -297,8 +298,14 @@
 						<span class="text-[11px] font-bold text-brand-600 uppercase tracking-wider block">
 							Payment Method
 						</span>
-						<span class="font-sans font-semibold text-brand-900">
-							{transaction.payment_method_name}
+						<span class="font-sans font-semibold text-brand-900 flex items-center gap-1">
+							{#if transaction.destination_account_name}
+								<span>{transaction.payment_method_name}</span>
+								<span class="text-brand-400">→</span>
+								<span class="text-brand-950 font-bold">{transaction.destination_account_name}</span>
+							{:else}
+								<span>{transaction.payment_method_name}</span>
+							{/if}
 						</span>
 					</div>
 

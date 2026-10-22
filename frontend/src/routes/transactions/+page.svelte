@@ -137,7 +137,7 @@
 </script>
 
 <svelte:head>
-	<title>Transactions — Personal Budgeting</title>
+	<title>Transactions — Homeledger</title>
 </svelte:head>
 
 <div class="space-y-5 pb-16">
@@ -145,34 +145,28 @@
 	<div
 		class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 pb-4 border-b border-brand-200"
 	>
-		<div class="space-y-1">
-			<div class="flex items-center gap-2.5 flex-wrap">
-				<h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-brand-900 font-sans">
-					Transactions
-				</h1>
+		<div class="flex items-center gap-2.5 flex-wrap">
+			<h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-brand-900 font-sans">
+				Transactions
+			</h1>
+			<span
+				class="text-xs font-mono font-semibold px-2.5 py-0.5 rounded-full bg-brand-100 text-brand-800 border border-brand-200"
+			>
+				{totalItems} Listed
+			</span>
+			{#if data.filters.allTime}
 				<span
-					class="text-xs font-mono font-semibold px-2.5 py-0.5 rounded-full bg-brand-100 text-brand-800 border border-brand-200"
+					class="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-brand-100 text-brand-700"
 				>
-					{totalItems} Listed
+					All Time
 				</span>
-				{#if data.filters.allTime}
-					<span
-						class="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-brand-100 text-brand-700"
-					>
-						All Time
-					</span>
-				{:else if data.filters.date_from && data.filters.date_to}
-					<span
-						class="text-xs font-mono text-brand-600 px-2 py-0.5 rounded-full bg-brand-50 border border-brand-200/80"
-					>
-						{data.filters.date_from} → {data.filters.date_to}
-					</span>
-				{/if}
-			</div>
-			<p class="text-brand-700 text-xs sm:text-sm leading-relaxed">
-				Scannable financial ledger with multi-envelope splits, installment financing, and audit
-				reversals.
-			</p>
+			{:else if data.filters.date_from && data.filters.date_to}
+				<span
+					class="text-xs font-mono text-brand-600 px-2 py-0.5 rounded-full bg-brand-50 border border-brand-200/80"
+				>
+					{data.filters.date_from} → {data.filters.date_to}
+				</span>
+			{/if}
 		</div>
 
 		<!-- Action Controls -->

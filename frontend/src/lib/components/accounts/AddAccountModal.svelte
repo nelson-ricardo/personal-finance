@@ -90,6 +90,7 @@
 			>
 				<option value="credit_card">Credit Card</option>
 				<option value="loan">Loan</option>
+				<option value="investment">Investment / Portfolio</option>
 			</select>
 		</div>
 
@@ -119,7 +120,11 @@
 			</div>
 		{/if}
 
-		<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+		<div
+			class="grid grid-cols-1 {$newAccount.account_type === 'investment'
+				? ''
+				: 'sm:grid-cols-2'} gap-3 sm:gap-4"
+		>
 			<!-- Current Balance -->
 			<div>
 				<label
@@ -141,47 +146,51 @@
 				{/if}
 			</div>
 
-			<!-- Monthly Payment -->
-			<div>
-				<label
-					for="create-monthly-payment"
-					class="block text-xs font-bold text-brand-800 uppercase tracking-wider mb-1"
-				>
-					Monthly Payment
-				</label>
-				<input
-					id="create-monthly-payment"
-					name="monthly_payment"
-					type="text"
-					placeholder="0.00"
-					bind:value={$newAccount.monthly_payment}
-					class="w-full px-3 py-2.5 rounded-xl border border-brand-300 text-base sm:text-sm font-mono tabular-nums text-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-				/>
-			</div>
-		</div>
-
-		<!-- Due Date -->
-		<div>
-			<label
-				for="create-date"
-				class="block text-xs font-bold text-brand-800 uppercase tracking-wider mb-1"
-			>
-				Due Date (Day 1 - 31)
-			</label>
-			<input
-				id="create-date"
-				name="due_date"
-				type="number"
-				min="1"
-				max="31"
-				placeholder="15"
-				bind:value={$newAccount.due_date}
-				class="w-full px-3 py-2.5 rounded-xl border border-brand-300 text-base sm:text-sm font-mono tabular-nums text-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-			/>
-			{#if $createErrors.due_date}
-				<p class="text-xs text-[#6b1d2f] mt-1 font-medium">{$createErrors.due_date}</p>
+			{#if $newAccount.account_type !== 'investment'}
+				<!-- Monthly Payment -->
+				<div>
+					<label
+						for="create-monthly-payment"
+						class="block text-xs font-bold text-brand-800 uppercase tracking-wider mb-1"
+					>
+						Monthly Payment
+					</label>
+					<input
+						id="create-monthly-payment"
+						name="monthly_payment"
+						type="text"
+						placeholder="0.00"
+						bind:value={$newAccount.monthly_payment}
+						class="w-full px-3 py-2.5 rounded-xl border border-brand-300 text-base sm:text-sm font-mono tabular-nums text-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+					/>
+				</div>
 			{/if}
 		</div>
+
+		{#if $newAccount.account_type !== 'investment'}
+			<!-- Due Date -->
+			<div>
+				<label
+					for="create-date"
+					class="block text-xs font-bold text-brand-800 uppercase tracking-wider mb-1"
+				>
+					Due Date (Day 1 - 31)
+				</label>
+				<input
+					id="create-date"
+					name="due_date"
+					type="number"
+					min="1"
+					max="31"
+					placeholder="15"
+					bind:value={$newAccount.due_date}
+					class="w-full px-3 py-2.5 rounded-xl border border-brand-300 text-base sm:text-sm font-mono tabular-nums text-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+				/>
+				{#if $createErrors.due_date}
+					<p class="text-xs text-[#6b1d2f] mt-1 font-medium">{$createErrors.due_date}</p>
+				{/if}
+			</div>
+		{/if}
 
 		<div
 			class="pt-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3 border-t border-brand-100"

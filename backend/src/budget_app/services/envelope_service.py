@@ -26,7 +26,6 @@ from budget_app.schemas import (
     EnvelopeTransfer,
     EnvelopeUpdate,
     EnvelopeWithBalance,
-    LedgerRequest,
     SystemEnvelopeType,
     TransactionRequest,
     TransactionType,

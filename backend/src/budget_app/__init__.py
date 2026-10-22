@@ -96,7 +96,6 @@ from budget_app.services import (
     update_transaction,
 )
 
-
 __all__ = [
     # Subpackages
     "models",

@@ -1,6 +1,7 @@
 """Integration tests for the /accounts API endpoints."""
 
 from decimal import Decimal
+
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
@@ -86,6 +87,7 @@ class TestCreateAccountRoute:
         response = client.post("/accounts/", json=payload)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
+
     def test_create_loan_account_with_category_route(self, client: TestClient):
         client.post("/categories/", json={"name": "Auto Loans Group", "order_index": 5})
         payload = {
@@ -111,20 +113,6 @@ class TestCreateAccountRoute:
         response = client.post("/accounts/", json=payload)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
-    def test_create_loan_account_with_category_route(self, client: TestClient):
-        client.post("/categories/", json={"name": "Auto Loans Group", "order_index": 5})
-        payload = {
-            "name": "Tesla Loan",
-            "account_type": "loan",
-            "starting_balance": "25000.00",
-            "monthly_payment": "450.00",
-            "category_name": "Auto Loans Group",
-        }
-        response = client.post("/accounts/", json=payload)
-        assert response.status_code == status.HTTP_201_CREATED
-        data = response.json()
-        assert data["name"] == "Tesla Loan"
-        assert data["envelope_name"] == "Tesla Loan"
 
 
 class TestGetAccountsRoute:

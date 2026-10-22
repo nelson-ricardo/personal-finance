@@ -11,6 +11,7 @@
 	import type { EnvelopeCategoryWithEnvelopes, Envelope } from '#lib/schemas/category.ts';
 	import Modal from '#lib/components/Modal.svelte';
 	import { formatCurrency, getLocalDateString } from '#lib/utils/formatters.ts';
+	import { getUserVisibleCategories } from '#lib/utils/categories.ts';
 
 	export type OperationTab = 'payment' | 'adjustment' | 'interest_charge' | 'interest_earned';
 
@@ -42,6 +43,8 @@
 
 	// svelte-ignore state_referenced_locally
 	let activeTab = $state<OperationTab>(initialTab);
+
+	const displayCategories = $derived(getUserVisibleCategories(categories));
 
 	// Sync activeTab and pre-selected accounts when modal opens
 	$effect(() => {
@@ -140,13 +143,26 @@
 			(a) => a.is_active && (a.account_type === 'credit_card' || a.account_type === 'loan')
 		)
 	);
+	const investmentAccounts = $derived(
+		accounts.filter((a) => a.is_active && a.account_type === 'investment')
+	);
+	const payableAccounts = $derived(
+		accounts.filter(
+			(a) =>
+				a.is_active &&
+				(a.account_type === 'credit_card' ||
+					a.account_type === 'loan' ||
+					a.account_type === 'investment')
+		)
+	);
 	const cashAccounts = $derived(accounts.filter((a) => a.is_active && a.account_type === 'cash'));
 	const allActiveAccounts = $derived(accounts.filter((a) => a.is_active));
 
 	// Context for Payment tab
 	const selectedPayAccount = $derived(
-		debtAccounts.find((a) => a.name === $payForm.account) || debtAccounts[0] || null
+		payableAccounts.find((a) => a.name === $payForm.account) || payableAccounts[0] || null
 	);
+	const isInvestmentPay = $derived(selectedPayAccount?.account_type === 'investment');
 
 	const allEnvelopes = $derived.by(() => {
 		const combined: Envelope[] = [...envelopes];
@@ -163,6 +179,28 @@
 			}
 		}
 		return combined;
+	});
+
+	const fundingEnvelopes = $derived(
+		allEnvelopes.filter(
+			(e) =>
+				e.is_active &&
+				e.name !== 'Unassigned' &&
+				e.name !== 'Account Adjustment' &&
+				!e.name.startsWith('Credit Card Payment')
+		)
+	);
+
+	const selectedFundingEnvelope = $derived.by(() => {
+		if (!isInvestmentPay) return null;
+		if ($payForm.envelope_name) {
+			const found = fundingEnvelopes.find((e) => e.name === $payForm.envelope_name);
+			if (found) return found;
+		}
+		const defaultInv = fundingEnvelopes.find(
+			(e) => e.name.toLowerCase() === 'investments' || e.name.toLowerCase() === 'investment'
+		);
+		return defaultInv || fundingEnvelopes[0] || null;
 	});
 
 	const linkedEnvelope = $derived.by(() => {
@@ -198,10 +236,14 @@
 	});
 
 	const displayEnvelopeName = $derived(
-		selectedPayAccount?.envelope_name ?? linkedEnvelope?.name ?? null
+		isInvestmentPay
+			? (selectedFundingEnvelope?.name ?? null)
+			: (selectedPayAccount?.envelope_name ?? linkedEnvelope?.name ?? null)
 	);
 	const displayEnvelopeBalance = $derived(
-		selectedPayAccount?.envelope_balance ?? linkedEnvelope?.balance ?? null
+		isInvestmentPay
+			? (selectedFundingEnvelope?.balance ?? null)
+			: (selectedPayAccount?.envelope_balance ?? linkedEnvelope?.balance ?? null)
 	);
 
 	// Context for Adjustment tab
@@ -330,11 +372,16 @@
 			>
 				<div class="font-bold text-brand-900 flex items-center gap-1.5">
 					<span>ℹ️</span>
-					<span>Double-Entry Debt Payment</span>
+					<span>{isInvestmentPay ? 'Transfer Cash to Investment' : 'Debt Payment'}</span>
 				</div>
 				<p class="leading-relaxed">
-					Transfers cash to pay down your credit card or loan. Funds are drawn from the account's
-					linked payment envelope and credit the debt balance.
+					{#if isInvestmentPay}
+						Transfers cash from your liquid balance into your investment account. Funds are deducted
+						from the selected budget envelope and increase your portfolio asset balance.
+					{:else}
+						Transfers cash to pay down your credit card or loan. Funds are drawn from the account's
+						linked payment envelope and reduce the debt balance.
+					{/if}
 				</p>
 			</div>
 
@@ -356,12 +403,12 @@
 				</div>
 			{/if}
 
-			{#if debtAccounts.length === 0}
+			{#if payableAccounts.length === 0}
 				<div
 					class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1"
 				>
-					<p class="font-bold">No active debt accounts found.</p>
-					<p>Create a credit card or loan account first before recording payments.</p>
+					<p class="font-bold">No payable or investment accounts found.</p>
+					<p>Create a credit card, loan, or investment account first.</p>
 				</div>
 			{:else}
 				<form method="POST" action="?/makePayment" use:enhancePay class="space-y-4 text-xs">
@@ -371,7 +418,7 @@
 							for="pay-account"
 							class="block font-bold text-brand-800 uppercase tracking-wider mb-1"
 						>
-							Target Account (Credit Card / Loan)
+							Destination Account
 						</label>
 						<select
 							id="pay-account"
@@ -379,11 +426,24 @@
 							bind:value={$payForm.account}
 							class="w-full px-3 py-2 rounded-xl border border-brand-300 font-sans text-brand-900 bg-white shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
 						>
-							{#each debtAccounts as acct (acct.id)}
-								<option value={acct.name}>
-									{acct.name} ({acct.account_type === 'credit_card' ? 'Credit Card' : 'Loan'})
-								</option>
-							{/each}
+							{#if debtAccounts.length > 0}
+								<optgroup label="Credit Cards & Loans">
+									{#each debtAccounts as acct (acct.id)}
+										<option value={acct.name}>
+											{acct.name} ({acct.account_type === 'credit_card' ? 'Credit Card' : 'Loan'})
+										</option>
+									{/each}
+								</optgroup>
+							{/if}
+							{#if investmentAccounts.length > 0}
+								<optgroup label="Investments & Portfolio">
+									{#each investmentAccounts as acct (acct.id)}
+										<option value={acct.name}>
+											{acct.name} (Investment)
+										</option>
+									{/each}
+								</optgroup>
+							{/if}
 						</select>
 						{#if $payErrors.account}
 							<span class="text-[#6b1d2f] text-[11px] block mt-1 font-medium"
@@ -392,14 +452,47 @@
 						{/if}
 					</div>
 
+					<!-- For Investment Accounts: Choose funding envelope -->
+					{#if isInvestmentPay}
+						<div>
+							<label
+								for="pay-envelope"
+								class="block font-bold text-brand-800 uppercase tracking-wider mb-1"
+							>
+								Source Budget Envelope
+							</label>
+							<select
+								id="pay-envelope"
+								name="envelope_name"
+								bind:value={$payForm.envelope_name}
+								class="w-full px-3 py-2 rounded-xl border border-brand-300 font-sans text-brand-900 bg-white shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+							>
+								{#each fundingEnvelopes as env (env.id)}
+									<option value={env.name}>
+										{env.name} ({formatCurrency(env.balance)})
+									</option>
+								{/each}
+							</select>
+							<p class="text-[11px] text-brand-500 mt-1">
+								Cash is deducted from your liquid account and covered by this budget envelope.
+							</p>
+						</div>
+					{/if}
+
 					<!-- Account Status Snapshot Card -->
 					{#if selectedPayAccount}
 						<div
 							class="grid grid-cols-2 gap-2.5 p-3 rounded-xl bg-brand-50/70 border border-brand-200 text-xs"
 						>
 							<div>
-								<span class="text-brand-600 block text-[11px]">Current Debt Balance</span>
-								<span class="font-mono tabular-nums font-bold text-brand-900 text-sm">
+								<span class="text-brand-600 block text-[11px]">
+									{isInvestmentPay ? 'Current Portfolio Value' : 'Current Debt Balance'}
+								</span>
+								<span
+									class="font-mono tabular-nums font-bold text-sm {isInvestmentPay
+										? 'text-emerald-900'
+										: 'text-brand-900'}"
+								>
 									{formatCurrency(selectedPayAccount.current_balance)}
 								</span>
 							</div>
@@ -423,17 +516,19 @@
 					<div>
 						<div class="flex items-center justify-between mb-1">
 							<label for="pay-amount" class="font-bold text-brand-800 uppercase tracking-wider">
-								Payment Amount ($)
+								{isInvestmentPay ? 'Transfer Amount ($)' : 'Payment Amount ($)'}
 							</label>
 							{#if selectedPayAccount}
 								<div class="flex items-center gap-1">
-									<button
-										type="button"
-										onclick={() => setPayAmount(selectedPayAccount?.current_balance)}
-										class="px-2 py-0.5 rounded-md bg-brand-100 hover:bg-brand-200 text-brand-800 text-[10px] font-mono font-semibold cursor-pointer"
-									>
-										Pay Full
-									</button>
+									{#if !isInvestmentPay}
+										<button
+											type="button"
+											onclick={() => setPayAmount(selectedPayAccount?.current_balance)}
+											class="px-2 py-0.5 rounded-md bg-brand-100 hover:bg-brand-200 text-brand-800 text-[10px] font-mono font-semibold cursor-pointer"
+										>
+											Pay Full
+										</button>
+									{/if}
 									{#if displayEnvelopeBalance && parseFloat(displayEnvelopeBalance) > 0}
 										<button
 											type="button"
@@ -443,7 +538,7 @@
 											Available
 										</button>
 									{/if}
-									{#if selectedPayAccount.total_statement_balance && parseFloat(selectedPayAccount.total_statement_balance) > 0}
+									{#if !isInvestmentPay && selectedPayAccount.total_statement_balance && parseFloat(selectedPayAccount.total_statement_balance) > 0}
 										<button
 											type="button"
 											onclick={() => setPayAmount(selectedPayAccount?.total_statement_balance)}
@@ -477,7 +572,11 @@
 						disabled={$paying}
 						class="w-full py-2.5 rounded-xl bg-brand-500 text-brand-50 font-semibold hover:bg-brand-600 active:bg-brand-700 disabled:opacity-50 transition-colors shadow-xs cursor-pointer text-sm"
 					>
-						{#if $paying}Recording Payment...{:else}Record Payment{/if}
+						{#if $paying}
+							{isInvestmentPay ? 'Transferring Funds...' : 'Recording Payment...'}
+						{:else}
+							{isInvestmentPay ? '💸 Transfer to Investment' : '💸 Record Payment'}
+						{/if}
 					</button>
 				</form>
 			{/if}
@@ -589,6 +688,24 @@
 										Balances match. No adjustment needed.
 									</p>
 								{/if}
+							{:else if selectedAdjAccount?.account_type === 'investment'}
+								{#if adjDelta > 0}
+									<p
+										class="text-[11px] text-emerald-800 bg-emerald-100/60 p-2 rounded-lg font-medium"
+									>
+										Portfolio gain of {formatCurrency(adjDelta)} will be recorded to
+										<strong>Account Adjustment</strong>.
+									</p>
+								{:else if adjDelta < 0}
+									<p class="text-[11px] text-[#6b1d2f] bg-[#6b1d2f]/10 p-2 rounded-lg font-medium">
+										Portfolio drop of {formatCurrency(Math.abs(adjDelta))} will be recorded to
+										<strong>Account Adjustment</strong>.
+									</p>
+								{:else}
+									<p class="text-[11px] text-brand-600 italic">
+										Balances match. No adjustment needed.
+									</p>
+								{/if}
 							{:else}
 								{#if adjDelta > 0}
 									<p class="text-[11px] text-amber-900 bg-amber-100/60 p-2 rounded-lg font-medium">
@@ -648,9 +765,9 @@
 							class="w-full px-3 py-2 rounded-xl border border-brand-300 font-sans text-brand-900 bg-white shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
 						>
 							<option value="">Select an envelope to absorb reduction...</option>
-							{#each categories.filter((c) => c.name !== 'System') as cat (cat.id)}
+							{#each displayCategories as cat (cat.id ?? cat.name)}
 								<optgroup label={cat.name}>
-									{#each cat.envelopes.filter((e) => e.is_active && e.name !== 'Account Adjustment') as env (env.id)}
+									{#each cat.envelopes.filter((e) => e.is_active && e.name !== 'Account Adjustment') as env (env.id ?? env.name)}
 										<option value={env.name}>
 											{env.name} ({formatCurrency(env.balance)} available)
 										</option>

@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from sqlmodel import Session
 
-from budget_app.models import Account, Transaction, Envelope
+from budget_app.models import Account, Envelope, Transaction
 from budget_app.repositories import (
     account_repo,
     category_repo,
@@ -87,6 +87,14 @@ def create_account(
         acc_info.interest_saving_balance = None
         acc_info.monthly_payment = None
         acc_info.due_date = None
+    elif acc_info.account_type == AccountType.INVESTMENT:
+        if initial_balance < Decimal("0"):
+            raise ValueError("Investment account balance cannot be negative")
+        # Investment accounts do not have statement balances, minimum payments, or due dates
+        acc_info.total_statement_balance = None
+        acc_info.interest_saving_balance = None
+        acc_info.monthly_payment = None
+        acc_info.due_date = None
     elif acc_info.account_type in (AccountType.CREDIT_CARD, AccountType.LOAN):
         if initial_balance < Decimal("0"):
             raise ValueError("Balance cannot be negative")
@@ -102,12 +110,11 @@ def create_account(
 
     # 5. Auto-link Credit Card and Loan accounts to payment envelopes
     cat_id = None
-    if getattr(acc_info, "category_name", None):
-        cat_name = acc_info.category_name.strip()
-        if cat_name:
-            cat = category_repo.get_category_by_name(session, cat_name)
-            if cat:
-                cat_id = cat.id
+    raw_cat_name = getattr(acc_info, "category_name", None)
+    if isinstance(raw_cat_name, str) and raw_cat_name.strip():
+        cat = category_repo.get_category_by_name(session, raw_cat_name.strip())
+        if cat:
+            cat_id = cat.id
 
     if acc_info.account_type == AccountType.CREDIT_CARD:
         cc_envelope = (
@@ -166,7 +173,36 @@ def create_account(
                 logged_date=tx_date,
             )
             transaction_repo.create_transaction(session, tx_req)
-        elif acc_info.account_type in (AccountType.CREDIT_CARD, AccountType.LOAN):
+        elif acc_info.account_type == AccountType.INVESTMENT:
+            adj_env = (
+                envelope_repo.get_envelope_by_system_role(
+                    session, SystemEnvelopeType.ACCOUNT_ADJUSTMENT
+                )
+                or envelope_repo.get_or_create_envelope(
+                    session,
+                    EnvelopeBase(
+                        name="Account Adjustment",
+                        system_role=SystemEnvelopeType.ACCOUNT_ADJUSTMENT,
+                    ),
+                )
+            )
+            split = EnvelopeSplitRequest(
+                amount=initial_balance,
+                envelope_id=adj_env.id,
+                envelope_name=adj_env.name,
+            )
+            tx_req = TransactionRequest(
+                merchant="Starting Balance",
+                payment_method_name=cleaned_name,
+                transaction_type=TransactionType.INCOME,
+                splits=[split],
+                logged_date=tx_date,
+            )
+            transaction_repo.create_transaction(session, tx_req)
+        elif acc_info.account_type in (
+            AccountType.CREDIT_CARD,
+            AccountType.LOAN,
+        ):
             adj_env = (
                 envelope_repo.get_envelope_by_system_role(
                     session, SystemEnvelopeType.ACCOUNT_ADJUSTMENT
@@ -582,6 +618,8 @@ def make_payment(
     target: str,
     amount: Decimal,
     logged_date: date | None = None,
+    source: str | None = None,
+    envelope_name: str | None = None,
 ) -> List[Transaction]:
     # fetch the account
     target_account: Account | None = account_repo.get_account_by_name(session, target)
@@ -589,9 +627,13 @@ def make_payment(
     if not target_account:
         raise ValueError(f"account {target} does not exist")
 
-    # ensure the account is a loan or a credit card and that it is active
-    if target_account.account_type not in (AccountType.LOAN, AccountType.CREDIT_CARD):
-        raise ValueError(f"account {target} is not a loan or credit card")
+    # ensure the account is a loan, credit card, or investment account, and active
+    if target_account.account_type not in (
+        AccountType.LOAN,
+        AccountType.CREDIT_CARD,
+        AccountType.INVESTMENT,
+    ):
+        raise ValueError(f"account {target} is not a loan, credit card, or investment account")
 
     if not target_account.is_active:
         raise ValueError(f"Cannot make payment to inactive/archived account '{target}'")
@@ -600,18 +642,39 @@ def make_payment(
     if amount <= 0:
         raise ValueError("amount has to be a positive value")
 
-    # fetch envelope and ensure we have enough money to cover the amount
-    envelope: Envelope | None = target_account.envelope
-    if not envelope:
+    # fetch funding envelope
+    envelope: Envelope | None = None
+    if target_account.account_type in (AccountType.LOAN, AccountType.CREDIT_CARD):
+        envelope = target_account.envelope
+        if not envelope and envelope_name:
+            envelope = envelope_repo.get_envelope_by_name(session, envelope_name)
+        if not envelope:
+            raise ValueError(f"account {target} does not have an envelope associated to it")
+    elif target_account.account_type == AccountType.INVESTMENT:
+        if envelope_name:
+            envelope = envelope_repo.get_envelope_by_name(session, envelope_name)
+        else:
+            envelope = envelope_repo.get_envelope_by_name(
+                session, "Investments"
+            ) or envelope_repo.get_envelope_by_name(session, "Investment")
+        if not envelope:
+            raise ValueError(
+                "A budget envelope is required to fund an investment transfer (e.g. 'Investments')"
+            )
+
+    if envelope is None:
         raise ValueError(f"account {target} does not have an envelope associated to it")
 
     env_bal = envelope_repo.get_balance_for_envelope(session, envelope)
     if amount > env_bal:
         raise ValueError(f"Insufficient funds in envelope {envelope.name}: available {env_bal}, required {amount}")
 
-    # create the credit card payment transaction
     tx_date = logged_date or date.today()
-    cash_acc = account_repo.get_cash_account(session)
+    cash_acc = (
+        account_repo.get_account_by_name(session, source)
+        if source
+        else account_repo.get_cash_account(session)
+    )
     cash_name = cash_acc.name if cash_acc else "Cash"
 
     adj_env = envelope_repo.get_envelope_by_system_role(
@@ -619,41 +682,39 @@ def make_payment(
     )
     adj_name = adj_env.name if adj_env else "Account Adjustment"
 
-    tx_pay_req: TransactionRequest = TransactionRequest(
-        merchant=target,
-        note=f"payment for {target} account",
+    merchant_label = (
+        f"Transfer to {target}"
+        if target_account.account_type == AccountType.INVESTMENT
+        else f"Payment for {target}"
+    )
+
+    # Create a SINGLE transaction with multiple splits:
+    # Split 1: Deducts from the funding envelope
+    # Split 2: Offsets into Account Adjustment
+    tx_req: TransactionRequest = TransactionRequest(
+        merchant=merchant_label,
+        note=f"{merchant_label} from {cash_name}",
         payment_method_name=cash_name,
+        destination_account_name=target,
         transaction_type=TransactionType.EXPENSE,
         splits=[
             EnvelopeSplitRequest(
                 amount=Decimal(-amount),
-                envelope_name=envelope.name
-            )
-        ],
-        logged_date=tx_date,
-    )
-
-    tx_bal_adj: TransactionRequest = TransactionRequest(
-        merchant=target,
-        note=f"payment for {target} account",
-        payment_method_name=target,
-        transaction_type=TransactionType.INCOME,
-        splits=[
+                envelope_name=envelope.name,
+            ),
             EnvelopeSplitRequest(
                 amount=Decimal(amount),
-                envelope_name=adj_name
-            )
+                envelope_name=adj_name,
+            ),
         ],
         logged_date=tx_date,
     )
 
-    tx_pay: Transaction = transaction_repo.create_transaction(session, tx_pay_req)
-    tx_bal: Transaction = transaction_repo.create_transaction(session, tx_bal_adj)
+    single_tx: Transaction = transaction_repo.create_transaction(session, tx_req)
 
     session.commit()
-    session.refresh(tx_bal)
-    session.refresh(tx_pay)
-    return [tx_pay, tx_bal]
+    session.refresh(single_tx)
+    return [single_tx]
 
 
 def adjust_account_balance(
@@ -765,6 +826,47 @@ def adjust_account_balance(
             tx_req = TransactionRequest(
                 merchant="Balance Adjustment",
                 note=note or f"Balance adjustment: -{abs(delta)}",
+                payment_method_name=account.name,
+                transaction_type=TransactionType.EXPENSE,
+                splits=[split],
+            )
+    elif account.account_type == AccountType.INVESTMENT:
+        adj_env = (
+            envelope_repo.get_envelope_by_system_role(
+                session, SystemEnvelopeType.ACCOUNT_ADJUSTMENT
+            )
+            or envelope_repo.get_or_create_envelope(
+                session,
+                EnvelopeBase(
+                    name="Account Adjustment",
+                    system_role=SystemEnvelopeType.ACCOUNT_ADJUSTMENT,
+                ),
+            )
+        )
+        if delta > Decimal("0.00"):
+            # Investment value increased (Market gain)
+            split = EnvelopeSplitRequest(
+                amount=delta,
+                envelope_id=adj_env.id,
+                envelope_name=adj_env.name,
+            )
+            tx_req = TransactionRequest(
+                merchant="Market Adjustment",
+                note=note or f"Market value adjustment: +{delta}",
+                payment_method_name=account.name,
+                transaction_type=TransactionType.INCOME,
+                splits=[split],
+            )
+        else:
+            # Investment value decreased (Market loss)
+            split = EnvelopeSplitRequest(
+                amount=-abs(delta),
+                envelope_id=adj_env.id,
+                envelope_name=adj_env.name,
+            )
+            tx_req = TransactionRequest(
+                merchant="Market Adjustment",
+                note=note or f"Market value adjustment: -{abs(delta)}",
                 payment_method_name=account.name,
                 transaction_type=TransactionType.EXPENSE,
                 splits=[split],

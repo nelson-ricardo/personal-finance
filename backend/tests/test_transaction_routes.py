@@ -1,12 +1,12 @@
 """Integration tests for the /transactions API endpoints."""
 
 from decimal import Decimal
+
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from budget_app.models import Account, Envelope
 from budget_app.repositories import envelope_repo
 from budget_app.schemas import (
     AccountCreate,
@@ -16,7 +16,7 @@ from budget_app.schemas import (
     TransactionRequest,
     TransactionType,
 )
-from budget_app.services import account_service, envelope_service, transaction_service
+from budget_app.services import account_service, transaction_service
 
 
 @pytest.fixture
@@ -331,7 +331,8 @@ class TestPaymentsAndAdjustmentsRoutes:
 
         transactions = res.json()
         assert isinstance(transactions, list)
-        assert len(transactions) == 2
+        assert len(transactions) == 1
+        assert transactions[0]["merchant"] == "Payment for Visa Card"
 
     def test_make_payment_nonexistent_account(self, client: TestClient, test_setup):
         res = client.post(

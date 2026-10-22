@@ -3,7 +3,7 @@
 from decimal import Decimal
 from typing import List
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from budget_app.models import Account, Transaction
 from budget_app.repositories import envelope_repo
@@ -37,7 +37,10 @@ def get_balance_for_account(session: Session, account: Account) -> Decimal:
     if account.id is None:
         return getattr(account, "_current_balance", Decimal("0.00"))
 
-    stmt = select(Transaction).where(Transaction.payment_method_id == account.id)
+    stmt = select(Transaction).where(
+        (Transaction.payment_method_id == account.id)
+        | (Transaction.destination_account_id == account.id)
+    )
     transactions = session.exec(stmt).all()
     if not transactions:
         return getattr(account, "_current_balance", Decimal("0.00"))
@@ -49,6 +52,25 @@ def get_balance_for_account(session: Session, account: Account) -> Decimal:
             tx.note and "[REVERSED]" in tx.note
         ):
             continue
+
+        # Handle destination accounts for single-transaction payments & transfers
+        if tx.destination_account_id is not None:
+            tx_total = abs(tx.splits[0].amount) if tx.splits else Decimal("0.00")
+            if tx_total == Decimal("0.00"):
+                continue
+            if tx.destination_account_id == account.id:
+                if account.account_type in (AccountType.CREDIT_CARD, AccountType.LOAN):
+                    balance -= tx_total
+                elif account.account_type in (AccountType.CASH, AccountType.INVESTMENT):
+                    balance += tx_total
+                continue
+            # If this account is the source, fall through to deduct outflow
+            if account.account_type in (AccountType.CASH, AccountType.INVESTMENT):
+                balance -= tx_total
+                continue
+            elif account.account_type in (AccountType.CREDIT_CARD, AccountType.LOAN):
+                balance += tx_total
+                continue
 
         # Calculate transaction total
         tx_total = Decimal("0.00")
@@ -81,13 +103,16 @@ def get_balance_for_account(session: Session, account: Account) -> Decimal:
         if tx_total == Decimal("0.00"):
             continue
 
-        if account.account_type == AccountType.CASH:
+        if account.account_type in (AccountType.CASH, AccountType.INVESTMENT):
             if tx.transaction_type in (
                 TransactionType.INCOME,
                 TransactionType.INTEREST_EARNED,
             ):
                 balance += tx_total
-            elif tx.transaction_type == TransactionType.EXPENSE:
+            elif tx.transaction_type in (
+                TransactionType.EXPENSE,
+                TransactionType.INTEREST_CHARGE,
+            ):
                 balance -= tx_total
         elif account.account_type in (AccountType.CREDIT_CARD, AccountType.LOAN):
             if tx.transaction_type in (
@@ -172,7 +197,7 @@ def get_accounts(
     if is_active is not None:
         stmt = stmt.where(Account.is_active == is_active)
     if account_types:
-        stmt = stmt.where(Account.account_type.in_(account_types))
+        stmt = stmt.where(col(Account.account_type).in_(account_types))
     stmt = stmt.order_by(Account.name)
     accounts = list(session.exec(stmt).all())
     for acc in accounts:

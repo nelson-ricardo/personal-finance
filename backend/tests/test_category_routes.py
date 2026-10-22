@@ -1,11 +1,9 @@
 """Integration tests for the /categories API endpoints."""
 
-from decimal import Decimal
 from fastapi import status
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from budget_app.models import Envelope
 from budget_app.schemas import EnvelopeBase
 from budget_app.services import envelope_service
 

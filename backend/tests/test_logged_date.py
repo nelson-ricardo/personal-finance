@@ -85,7 +85,7 @@ def test_make_payment_respects_logged_date(session: Session):
         session, "Dated Loan", Decimal("100.00"), logged_date=PAST
     )
 
-    assert len(txs) == 2
+    assert len(txs) == 1
     assert all(tx.logged_date == PAST for tx in txs)
 
 

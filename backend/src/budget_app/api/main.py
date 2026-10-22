@@ -1,7 +1,6 @@
 import os
 
 from fastapi import FastAPI
-from budget_app.db import get_session
 
 from budget_app.api.routes import accounts, categories, envelopes, transactions
 

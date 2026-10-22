@@ -1,41 +1,44 @@
-from typing import List
 from datetime import date
 from decimal import Decimal
+from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session, SQLModel
 
 from budget_app.db import get_session
+from budget_app.models import Transaction
 from budget_app.schemas import (
-    TransactionRequest, 
-    TransactionResponse, 
-    FinancedTransaction,
-    TransactionType,
-    TransactionDetailResponse,
-    TransactionUpdateRequest,
-    FinancedTransactionUpdateRequest,
     BalanceAdjustmentRequest,
+    FinancedTransaction,
+    FinancedTransactionUpdateRequest,
     InterestChargeRequest,
     InterestEarnedRequest,
+    TransactionDetailResponse,
+    TransactionRequest,
+    TransactionResponse,
+    TransactionType,
+    TransactionUpdateRequest,
 )
-from budget_app.models import Transaction
 from budget_app.services import (
-    add_reg_transaction, 
     add_financed_transaction,
-    get_transactions,
-    delete_transaction,
-    get_transaction_by_id,
-    update_transaction,
-    update_financed_transaction,
-    make_payment,
-    adjust_account_balance,
     add_interest_charge,
     add_interest_earned,
+    add_reg_transaction,
+    adjust_account_balance,
+    delete_transaction,
+    get_transaction_by_id,
+    get_transactions,
+    make_payment,
+    update_financed_transaction,
+    update_transaction,
 )
+
 
 class PaymentRequest(SQLModel):
     account: str
     amount: Decimal
+    source_account: str | None = None
+    envelope_name: str | None = None
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -200,7 +203,9 @@ def acct_payment(
         tx_list = make_payment(
             session=session,
             target=payload.account,
-            amount=payload.amount
+            amount=payload.amount,
+            source=payload.source_account,
+            envelope_name=payload.envelope_name,
         )
         return [get_transaction_by_id(session, tx.id) for tx in tx_list if tx.id is not None]
     except ValueError as e:

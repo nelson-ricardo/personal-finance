@@ -12,6 +12,7 @@
 	import AccountOperationsModal, {
 		type OperationTab
 	} from '#lib/components/accounts/AccountOperationsModal.svelte';
+	import { formatCurrency } from '#lib/utils/formatters.ts';
 
 	let { data }: PageProps = $props();
 
@@ -35,21 +36,32 @@
 	// Derived metrics
 	const accounts = $derived(data.accounts);
 	const activeAccounts = $derived(accounts.filter((a) => a.is_active));
-	const totalBalance = $derived.by(() => {
-		return accounts.reduce((acc, a) => {
-			const val = parseFloat(a.current_balance) || 0;
-			return acc + (a.account_type === 'cash' ? val : -val);
-		}, 0);
+	const cashAccounts = $derived(accounts.filter((a) => a.account_type === 'cash'));
+	const investmentAccounts = $derived(accounts.filter((a) => a.account_type === 'investment'));
+	const debtAccounts = $derived(
+		accounts.filter((a) => a.account_type !== 'cash' && a.account_type !== 'investment')
+	);
+
+	const totalCash = $derived.by(() => {
+		return cashAccounts.reduce((acc, a) => acc + (parseFloat(a.current_balance) || 0), 0);
 	});
-	const totalLiabilities = $derived.by(() => {
+	const totalInvestments = $derived.by(() => {
+		return investmentAccounts.reduce((acc, a) => acc + (parseFloat(a.current_balance) || 0), 0);
+	});
+	const creditCardDebt = $derived.by(() => {
 		return accounts
-			.filter((a) => a.account_type !== 'cash')
+			.filter((a) => a.account_type === 'credit_card')
 			.reduce((acc, a) => acc + (parseFloat(a.current_balance) || 0), 0);
 	});
+	const totalLiabilities = $derived.by(() => {
+		return debtAccounts.reduce((acc, a) => acc + (parseFloat(a.current_balance) || 0), 0);
+	});
+	const totalNetWorth = $derived(totalCash + totalInvestments - totalLiabilities);
+	const netLiquid = $derived(totalCash - creditCardDebt);
 </script>
 
 <svelte:head>
-	<title>Accounts & Balances — Personal Finance</title>
+	<title>Accounts — Homeledger</title>
 </svelte:head>
 
 <div class="space-y-6 sm:space-y-8">
@@ -79,28 +91,22 @@
 	<div
 		class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 pb-4 border-b border-brand-200"
 	>
-		<div class="space-y-1">
-			<div class="flex items-center gap-2">
-				<h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-brand-900 font-sans">
-					Accounts & Balances
-				</h1>
+		<div class="flex items-center gap-2.5 flex-wrap">
+			<h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-brand-900 font-sans">
+				Accounts
+			</h1>
+			<span
+				class="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-brand-100 text-brand-800 border border-brand-200"
+			>
+				{activeAccounts.length} Active
+			</span>
+			{#if data.showAll}
 				<span
-					class="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-brand-100 text-brand-800 border border-brand-200"
+					class="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300"
 				>
-					{activeAccounts.length} Active
+					Including Archived
 				</span>
-				{#if data.showAll}
-					<span
-						class="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300"
-					>
-						Including Archived
-					</span>
-				{/if}
-			</div>
-			<p class="text-brand-700 text-xs sm:text-sm leading-relaxed">
-				Track and manage deposit accounts, credit cards, statement schedules, and payment
-				obligations.
-			</p>
+			{/if}
 		</div>
 
 		<div class="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
@@ -165,24 +171,229 @@
 	</div>
 
 	<!-- Financial Overview Stats Cards -->
-	<AccountOverviewStats {totalBalance} {totalLiabilities} {accounts} />
+	<AccountOverviewStats {totalNetWorth} {netLiquid} {totalInvestments} {totalLiabilities} />
 
-	<!-- Accounts Section -->
+	<!-- Cash & Liquid Deposits Section (Apple-style horizontal cards) -->
+	{#if cashAccounts.length > 0}
+		<section class="space-y-3">
+			<div class="flex items-center justify-between">
+				<h2 class="text-xs font-bold uppercase tracking-wider text-brand-700 font-sans">
+					Liquid Cash
+				</h2>
+				<span class="text-xs font-mono text-brand-500">
+					{cashAccounts.length} account{cashAccounts.length === 1 ? '' : 's'}
+				</span>
+			</div>
+
+			<div class="space-y-2.5">
+				{#each cashAccounts as account (account.id)}
+					<div
+						class="bg-white rounded-2xl border border-brand-200/90 p-4 sm:p-5 shadow-2xs hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+					>
+						<!-- Left: Emblem, Identity & Balance -->
+						<div class="flex items-center gap-3.5 min-w-0">
+							<div
+								class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center justify-center text-lg shrink-0"
+							>
+								💵
+							</div>
+							<div class="min-w-0">
+								<div class="flex items-center gap-2 flex-wrap">
+									<h3 class="font-bold text-base text-brand-900 font-sans leading-snug truncate">
+										{account.name}
+									</h3>
+									{#if !account.is_active}
+										<span
+											class="text-[10px] font-mono font-medium px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200"
+										>
+											Archived
+										</span>
+									{/if}
+								</div>
+								<div
+									class="text-2xl sm:text-3xl font-mono font-bold tabular-nums text-brand-950 mt-0.5"
+								>
+									{formatCurrency(account.current_balance)}
+								</div>
+							</div>
+						</div>
+
+						<!-- Right: Actions (Adjust Balance, + Interest, Edit) -->
+						<div class="flex flex-wrap items-center gap-2 self-start sm:self-center shrink-0">
+							{#if !account.is_active}
+								<form method="POST" action="?/activateAccount" class="inline">
+									<input type="hidden" name="name" value={account.name} />
+									<button
+										type="submit"
+										class="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+										title="Reactivate this archived account"
+									>
+										<span>🔄 Reactivate</span>
+									</button>
+								</form>
+							{:else}
+								<button
+									type="button"
+									onclick={() => openOperations('adjustment', account)}
+									class="px-3 py-1.5 rounded-xl text-xs font-semibold text-brand-800 bg-brand-50 hover:bg-brand-100 border border-brand-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 cursor-pointer flex items-center gap-1.5 shadow-2xs"
+									title="Reconcile cash balance"
+								>
+									<span>⚖️</span>
+									<span>Adjust Balance</span>
+								</button>
+
+								<button
+									type="button"
+									onclick={() => openOperations('interest_earned', account)}
+									class="px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer flex items-center gap-1.5 shadow-2xs"
+									title="Log interest earned (APY)"
+								>
+									<span>💰</span>
+									<span>+ Interest</span>
+								</button>
+							{/if}
+
+							<button
+								type="button"
+								onclick={() => (editingAccount = account)}
+								class="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-brand-600 hover:text-brand-900 hover:bg-brand-100/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 cursor-pointer"
+								title="Edit account settings"
+							>
+								Edit
+							</button>
+						</div>
+					</div>
+				{/each}
+			</div>
+		</section>
+	{/if}
+
+	<!-- Investments & Portfolio Section (Apple-style asset tracking cards) -->
+	{#if investmentAccounts.length > 0}
+		<section class="space-y-3">
+			<div class="flex items-center justify-between">
+				<h2 class="text-xs font-bold uppercase tracking-wider text-brand-700 font-sans">
+					Investments & Portfolio
+				</h2>
+				<span class="text-xs font-mono text-brand-500">
+					{investmentAccounts.length} account{investmentAccounts.length === 1 ? '' : 's'}
+				</span>
+			</div>
+
+			<div class="space-y-2.5">
+				{#each investmentAccounts as account (account.id)}
+					<div
+						class="bg-white rounded-2xl border border-brand-200/90 p-4 sm:p-5 shadow-2xs hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+					>
+						<!-- Left: Emblem, Identity & Balance -->
+						<div class="flex items-center gap-3.5 min-w-0">
+							<div
+								class="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 border border-teal-100 flex items-center justify-center text-lg shrink-0"
+							>
+								📈
+							</div>
+							<div class="min-w-0">
+								<div class="flex items-center gap-2 flex-wrap">
+									<h3 class="font-bold text-base text-brand-900 font-sans leading-snug truncate">
+										{account.name}
+									</h3>
+									{#if !account.is_active}
+										<span
+											class="text-[10px] font-mono font-medium px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200"
+										>
+											Archived
+										</span>
+									{/if}
+								</div>
+								<div
+									class="text-2xl sm:text-3xl font-mono font-bold tabular-nums text-emerald-900 mt-0.5"
+								>
+									{formatCurrency(account.current_balance)}
+								</div>
+							</div>
+						</div>
+
+						<!-- Right: Actions (Adjust Balance, Edit) -->
+						<div class="flex flex-wrap items-center gap-2 self-start sm:self-center shrink-0">
+							{#if !account.is_active}
+								<form method="POST" action="?/activateAccount" class="inline">
+									<input type="hidden" name="name" value={account.name} />
+									<button
+										type="submit"
+										class="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+										title="Reactivate this archived account"
+									>
+										<span>🔄 Reactivate</span>
+									</button>
+								</form>
+							{:else}
+								<button
+									type="button"
+									onclick={() => openOperations('adjustment', account)}
+									class="px-3 py-1.5 rounded-xl text-xs font-semibold text-brand-800 bg-brand-50 hover:bg-brand-100 border border-brand-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 cursor-pointer flex items-center gap-1.5 shadow-2xs"
+									title="Reconcile market value"
+								>
+									<span>⚖️</span>
+									<span>Adjust Balance</span>
+								</button>
+
+								<button
+									type="button"
+									onclick={() => openOperations('payment', account)}
+									class="px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer flex items-center gap-1.5 shadow-2xs"
+									title="Transfer cash to investment"
+								>
+									<span>💸</span>
+									<span>Transfer In</span>
+								</button>
+							{/if}
+
+							<button
+								type="button"
+								onclick={() => (editingAccount = account)}
+								class="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-brand-600 hover:text-brand-900 hover:bg-brand-100/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 cursor-pointer"
+								title="Edit account settings"
+							>
+								Edit
+							</button>
+						</div>
+					</div>
+				{/each}
+			</div>
+		</section>
+	{/if}
+
+	<!-- Credit Cards & Loans (Structured Liabilities & Debt) -->
 	<section class="space-y-4">
 		<div class="flex items-center justify-between">
 			<h2 class="text-sm sm:text-base font-bold text-brand-900 font-sans">
-				{data.showAll ? 'All Accounts (Active & Archived)' : 'Active Accounts'}
+				{data.showAll ? 'Credit Cards & Loans (All)' : 'Credit Cards & Loans'}
 			</h2>
 			<span class="text-xs font-mono text-brand-600">
-				{accounts.length} record{accounts.length === 1 ? '' : 's'}
+				{debtAccounts.length} record{debtAccounts.length === 1 ? '' : 's'}
 			</span>
 		</div>
 
-		{#if accounts.length === 0}
-			<AccountEmptyState onadd={() => (isAdding = true)} />
+		{#if debtAccounts.length === 0}
+			{#if cashAccounts.length === 0 && investmentAccounts.length === 0}
+				<AccountEmptyState onadd={() => (isAdding = true)} />
+			{:else}
+				<div
+					class="bg-white rounded-2xl border border-dashed border-brand-200 p-6 text-center space-y-2"
+				>
+					<p class="text-xs text-brand-500">No credit cards or loans tracked yet.</p>
+					<button
+						type="button"
+						onclick={() => (isAdding = true)}
+						class="text-xs font-semibold text-brand-700 hover:text-brand-950 underline"
+					>
+						+ Add Credit Card or Loan
+					</button>
+				</div>
+			{/if}
 		{:else}
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
-				{#each accounts as account (account.id)}
+				{#each debtAccounts as account (account.id)}
 					<AccountCard
 						{account}
 						envelopes={data.envelopes}

@@ -51,16 +51,9 @@
 				{formatCurrency(unassignedBalance)}
 			</div>
 
-			<p class="text-xs sm:text-sm text-brand-600 max-w-md">
-				{#if isPositive}
-					Unassigned cash waiting to be allocated into your budgeting envelopes.
-				{:else if isNegative}
-					You have assigned more money than available in liquid cash. Reduce allocations to balance.
-				{:else}
-					All available cash is assigned. Practice zero-based stewardship by assigning incoming
-					income.
-				{/if}
-			</p>
+			{#if isNegative}
+				<p class="text-xs font-semibold text-[#6b1d2f]">Deficit exceeds available cash balance.</p>
+			{/if}
 		</div>
 
 		<button

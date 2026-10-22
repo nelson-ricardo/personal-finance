@@ -222,10 +222,13 @@ export const actions: Actions = {
 			return fail(400, { paymentForm: form });
 		}
 
-		const payload = {
+		const payload: Record<string, string> = {
 			account: form.data.account.trim(),
 			amount: parseFloat(form.data.amount).toFixed(2)
 		};
+		if (form.data.envelope_name && form.data.envelope_name.trim()) {
+			payload.envelope_name = form.data.envelope_name.trim();
+		}
 
 		const res = await fetch(`${getApiBaseUrl()}/transactions/payments`, {
 			method: 'POST',

@@ -124,7 +124,9 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
 
 	const accounts = AccountsListSchema.parse(rawAccounts);
 	const categories = CategoriesWithEnvelopesSchema.parse(rawCategories);
-	const transactions = rawTransactions as TransactionItem[];
+	const transactions = (rawTransactions as TransactionItem[]).filter(
+		(tx) => tx.merchant !== 'Market Adjustment'
+	);
 
 	// Initialize superforms for all operations
 	const todayStr = getLocalDateString();

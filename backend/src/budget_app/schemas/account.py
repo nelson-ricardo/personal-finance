@@ -17,6 +17,7 @@ class AccountType(str, Enum):
     CASH = "cash"
     CREDIT_CARD = "credit_card"
     LOAN = "loan"
+    INVESTMENT = "investment"
 
 
 class AccountBase(SQLModel):

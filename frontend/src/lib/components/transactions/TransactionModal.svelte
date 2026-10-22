@@ -6,6 +6,7 @@
 	import type { EnvelopeCategoryWithEnvelopes } from '#lib/schemas/category.ts';
 	import Modal from '#lib/components/Modal.svelte';
 	import { formatCurrency, getLocalDateString } from '#lib/utils/formatters.ts';
+	import { getUserVisibleCategories } from '#lib/utils/categories.ts';
 
 	let {
 		open = false,
@@ -77,7 +78,7 @@
 	const creditCardAccounts = $derived(
 		activeAccounts.filter((a) => a.account_type === 'credit_card')
 	);
-	const budgetingCategories = $derived(categories.filter((c) => c.name !== 'System'));
+	const budgetingCategories = $derived(getUserVisibleCategories(categories));
 
 	const allActiveEnvelopes = $derived(
 		budgetingCategories.flatMap((c) => c.envelopes).filter((e) => e.is_active)

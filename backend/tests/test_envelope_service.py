@@ -1,4 +1,5 @@
 from decimal import Decimal
+
 import pytest
 
 from budget_app.models import Account, Envelope, Transaction
@@ -15,7 +16,6 @@ from budget_app.schemas import (
     EnvelopeSplitRequest,
     EnvelopeUpdate,
     EnvelopeWithBalance,
-    LedgerRequest,
     SystemEnvelopeType,
     TransactionRequest,
     TransactionType,
@@ -172,7 +172,7 @@ class TestTransferBetweenEnvelopes:
 
     def test_assign_to_envelope_success(self, session):
         env_service.add_to_cash(session, Decimal("1000"), "Paycheck")
-        dest_env = env_service.create_envelope(
+        env_service.create_envelope(
             session, EnvelopeBase(name="Dining Out")
         )
 
@@ -207,7 +207,7 @@ class TestTransferBetweenEnvelopes:
 
     def test_assign_zero_or_negative_amount_raises_error(self, session):
         env_service.add_to_cash(session, Decimal("500"), "Income")
-        dest = env_service.create_envelope(session, EnvelopeBase(name="Rent"))
+        env_service.create_envelope(session, EnvelopeBase(name="Rent"))
 
         with pytest.raises(
             ValueError, match="amount cannot be 0 or negative"
@@ -234,7 +234,7 @@ class TestTransferBetweenEnvelopes:
 
     def test_assign_insufficient_unassigned_balance_raises_error(self, session):
         env_service.add_to_cash(session, Decimal("100"), "Small Paycheck")
-        dest = env_service.create_envelope(session, EnvelopeBase(name="Bills"))
+        env_service.create_envelope(session, EnvelopeBase(name="Bills"))
 
         with pytest.raises(
             ValueError, match="amount too high, can transfer up to .* from Unassigned"
@@ -245,7 +245,7 @@ class TestTransferBetweenEnvelopes:
 
     def test_alias_transfer_from_unassigned(self, session):
         env_service.add_to_cash(session, Decimal("500"), "Income")
-        dest = env_service.create_envelope(session, EnvelopeBase(name="Gym"))
+        env_service.create_envelope(session, EnvelopeBase(name="Gym"))
 
         result = env_service.transfer_from_unassigned(
             session, destination="Gym", amount=Decimal("75")
@@ -621,7 +621,7 @@ class TestUpdateEnvelopeInfo:
         assert get_balance_for_envelope(session, updated) == Decimal("500.00")
 
         # assign_to_envelope transfers from the renamed envelope
-        target_env = env_service.create_envelope(
+        env_service.create_envelope(
             session, EnvelopeBase(name="Groceries")
         )
         transfer = env_service.assign_to_envelope(
@@ -649,12 +649,12 @@ class TestUpdateEnvelopeInfo:
         assert updated.system_role == SystemEnvelopeType.CREDIT_CARD_PAYMENT
 
         # Create CC account linked to CC payment
-        cc_acc = account_service.create_account(
+        account_service.create_account(
             session,
             AccountBase(name="Chase Sapphire", account_type=AccountType.CREDIT_CARD),
         )
         # Create a spending envelope and fund it
-        dining_env = env_service.create_envelope(
+        env_service.create_envelope(
             session, EnvelopeBase(name="Dining")
         )
         env_service.add_to_cash(session, Decimal("200.00"), "Bonus")

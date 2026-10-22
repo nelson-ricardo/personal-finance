@@ -5,7 +5,7 @@ from typing import List, Optional
 from sqlmodel import Session, col, func, select
 
 from budget_app.models import Envelope, EnvelopeCategory
-from budget_app.schemas import EnvelopeCategoryBase, EnvelopeCategoryUpdate
+from budget_app.schemas import EnvelopeCategoryBase
 
 
 def get_category_by_id(session: Session, category_id: int) -> EnvelopeCategory | None:

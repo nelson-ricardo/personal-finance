@@ -1,9 +1,10 @@
 """Transaction repository for database operations on Transaction and child Ledger entities."""
 
 from datetime import date
+
 from sqlmodel import Session, col, select
 
-from budget_app.models import EnvelopeSplit, Ledger, Transaction
+from budget_app.models import EnvelopeSplit, Transaction
 from budget_app.repositories import account_repo, envelope_repo
 from budget_app.schemas import TransactionRequest, TransactionType
 
@@ -56,6 +57,16 @@ def create_transaction(
         for entry, env in resolved_splits
     ]
 
+    # Resolve destination account if provided
+    dest_account = None
+    dest_name = getattr(transaction_info, "destination_account_name", None)
+    if dest_name:
+        dest_account = account_repo.get_account_by_name(session, dest_name)
+        if not dest_account:
+            raise ValueError(
+                f"Destination account '{dest_name}' does not exist."
+            )
+
     # 3. Create master Transaction entity bound to account and splits
     transaction: Transaction = Transaction(
         merchant=transaction_info.merchant,
@@ -63,6 +74,7 @@ def create_transaction(
         posted_date=transaction_info.posted_date,
         is_reconciled=transaction_info.is_reconciled,
         account=account,
+        destination_account_id=dest_account.id if dest_account else None,
         splits=splits_db,
         note=transaction_info.note,
         transaction_type=transaction_info.transaction_type,
@@ -107,7 +119,10 @@ def get_transactions(
     stmt = select(Transaction)
 
     if account_id is not None:
-        stmt = stmt.where(col(Transaction.payment_method_id) == account_id)
+        stmt = stmt.where(
+            (col(Transaction.payment_method_id) == account_id)
+            | (col(Transaction.destination_account_id) == account_id)
+        )
 
     if date_from is not None:
         stmt = stmt.where(col(Transaction.logged_date) >= date_from)
@@ -121,7 +136,7 @@ def get_transactions(
     if exclude_reversed:
         stmt = stmt.where(col(Transaction.transaction_type) != TransactionType.REVERSAL)
         stmt = stmt.where(
-            (col(Transaction.note) == None) | (~col(Transaction.note).ilike("%[REVERSED]%"))
+            (col(Transaction.note).is_(None)) | (~col(Transaction.note).ilike("%[REVERSED]%"))
         )
 
     if envelope_id is not None:

@@ -1,11 +1,11 @@
 """Service for managing point-in-time database snapshots and checkpoints."""
 
-from datetime import datetime, timezone
-from decimal import Decimal
 import json
 import os
-from pathlib import Path
 import re
+from datetime import datetime, timezone
+from decimal import Decimal
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from sqlmodel import Session, delete, select, text
@@ -211,7 +211,7 @@ def restore_checkpoint(session: Session, checkpoint_id: str) -> CheckpointSummar
         ]
         for tbl, col in table_cols:
             quoted_tbl = f'"{tbl}"' if tbl == "transaction" else tbl
-            session.exec(
+            session.execute(
                 text(
                     f"SELECT setval(pg_get_serial_sequence('{quoted_tbl}', '{col}'), COALESCE(MAX({col}), 1), MAX({col}) IS NOT NULL) FROM {quoted_tbl};"
                 )

@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json.schemastore.org/web-manifest-combined.json",
-	"name": "Personal Budgeting — [ Name Here ]",
-	"short_name": "[ Name Here ]",
+	"name": "Homeledger — Personal Budgeting",
+	"short_name": "Homeledger",
 	"description": "Disciplined personal budgeting, accounts, and envelopes manager with fiscal stewardship.",
 	"start_url": "/",
 	"scope": "/",

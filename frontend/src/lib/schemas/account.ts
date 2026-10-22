@@ -1,12 +1,12 @@
 import { z } from 'zod';
 
-export const AccountTypeSchema = z.enum(['loan', 'credit_card']);
+export const AccountTypeSchema = z.enum(['loan', 'credit_card', 'investment']);
 export type AccountType = z.infer<typeof AccountTypeSchema>;
 
 export const AccountSchema = z.object({
 	id: z.number(),
 	name: z.string(),
-	account_type: z.enum(['cash', 'loan', 'credit_card']),
+	account_type: z.enum(['cash', 'loan', 'credit_card', 'investment']),
 	current_balance: z.string(),
 	total_statement_balance: z.string().nullable().optional(),
 	interest_saving_balance: z.string().nullable().optional(),
@@ -90,11 +90,12 @@ export type AccountsList = z.infer<typeof AccountsListSchema>;
 // Account Operations Schemas (Debt Payment, Balance Adjustment, Interest Charge, Interest Earned)
 
 export const paymentSchema = z.object({
-	account: z.string().trim().min(1, 'Target debt account is required'),
+	account: z.string().trim().min(1, 'Target account is required'),
 	amount: z
 		.string()
 		.regex(/^\d+(\.\d{1,2})?$/, 'Invalid amount (e.g. 50.00)')
-		.refine((val) => parseFloat(val) > 0, 'Payment amount must be greater than 0')
+		.refine((val) => parseFloat(val) > 0, 'Payment amount must be greater than 0'),
+	envelope_name: z.string().optional().nullable()
 });
 export type PaymentForm = z.infer<typeof paymentSchema>;
 

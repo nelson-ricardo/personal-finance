@@ -13,6 +13,7 @@
 	import CreateEnvelopeModal from '#lib/components/envelopes/CreateEnvelopeModal.svelte';
 	import EditEnvelopeModal from '#lib/components/envelopes/EditEnvelopeModal.svelte';
 	import CategoryModal from '#lib/components/envelopes/CategoryModal.svelte';
+	import { getUserVisibleCategories } from '#lib/utils/categories.ts';
 
 	let { data }: PageProps = $props();
 
@@ -35,14 +36,18 @@
 	// Derived metrics & collections
 	const categories = $derived(data.categories);
 	const allEnvelopes = $derived(categories.flatMap((c) => c.envelopes));
-	const activeEnvelopes = $derived(allEnvelopes.filter((e) => e.is_active));
+	const activeEnvelopes = $derived(
+		allEnvelopes.filter(
+			(e) => e.is_active && e.name !== 'Unassigned' && e.name !== 'Account Adjustment'
+		)
+	);
 
 	// Extract Unassigned cash balance from System category
 	const unassignedEnv = $derived(allEnvelopes.find((e) => e.name === 'Unassigned'));
 	const unassignedBalance = $derived(parseFloat(unassignedEnv?.balance ?? '0.00') || 0);
 
-	// User budgeting categories (excluding System category which is featured in hero banner)
-	const userCategories = $derived(categories.filter((c) => c.name !== 'System'));
+	// User budgeting categories: Credit Card Payments hoisted, internal system envelopes excluded
+	const userCategories = $derived(getUserVisibleCategories(categories));
 
 	const allEnvelopesUrl = `${resolve('/envelopes')}?all=true` as unknown as ResolvedPathname;
 	const activeEnvelopesUrl = resolve('/envelopes');
@@ -75,7 +80,7 @@
 </script>
 
 <svelte:head>
-	<title>Envelopes & Categories — Personal Finance</title>
+	<title>Envelopes — Homeledger</title>
 </svelte:head>
 
 <div class="space-y-6 sm:space-y-8">
@@ -83,30 +88,24 @@
 	<div
 		class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 pb-4 border-b border-brand-200"
 	>
-		<div class="space-y-1">
-			<div class="flex items-center gap-2 flex-wrap">
-				<h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-brand-900 font-sans">
-					Envelopes
-				</h1>
-				<div class="flex items-center gap-1.5 shrink-0">
+		<div class="flex items-center gap-2.5 flex-wrap">
+			<h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-brand-900 font-sans">
+				Envelopes
+			</h1>
+			<div class="flex items-center gap-1.5 shrink-0">
+				<span
+					class="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-brand-100 text-brand-800 border border-brand-200"
+				>
+					{activeEnvelopes.length} Active
+				</span>
+				{#if data.showAll}
 					<span
-						class="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-brand-100 text-brand-800 border border-brand-200"
+						class="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300"
 					>
-						{activeEnvelopes.length} Active
+						+ Archived
 					</span>
-					{#if data.showAll}
-						<span
-							class="text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300"
-						>
-							+ Archived
-						</span>
-					{/if}
-				</div>
+				{/if}
 			</div>
-			<p class="text-brand-700 text-xs sm:text-sm leading-relaxed">
-				Zero-based cash envelope allocation. Group envelopes into categories, assign cash, and roll
-				over balances.
-			</p>
 		</div>
 
 		<!-- Top Action Toolbar -->
@@ -241,17 +240,14 @@
 					✉️
 				</div>
 				<div class="space-y-1 max-w-sm mx-auto">
-					<h3 class="text-base sm:text-lg font-bold text-brand-900">No categories created yet</h3>
-					<p class="text-xs sm:text-sm text-brand-600">
-						Create your first budgeting category to organize your envelopes and allocate income.
-					</p>
+					<h3 class="text-base font-bold text-brand-900">No Categories</h3>
 				</div>
 				<button
 					type="button"
 					onclick={openCreateCategory}
-					class="px-4 py-2 rounded-xl bg-brand-500 text-brand-50 text-sm font-semibold hover:bg-brand-600 transition-colors shadow-xs cursor-pointer"
+					class="px-4 py-2 rounded-xl bg-brand-500 text-brand-50 text-xs font-semibold hover:bg-brand-600 transition-colors shadow-xs cursor-pointer"
 				>
-					Create First Category
+					New Category
 				</button>
 			</div>
 		{:else}

@@ -32,7 +32,13 @@
 				{envelope.name}
 			</span>
 
-			{#if envelope.system_role}
+			{#if envelope.system_role === 'CREDIT_CARD_PAYMENT' || envelope.name === 'Credit Card Payment'}
+				<span
+					class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200"
+				>
+					Credit Card
+				</span>
+			{:else if envelope.system_role}
 				<span
 					class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 border border-stone-200"
 				>

@@ -35,3 +35,24 @@ export function getLocalDateString(d: Date = new Date()): string {
 	const day = String(d.getDate()).padStart(2, '0');
 	return `${year}-${month}-${day}`;
 }
+
+/**
+ * Formats an ISO date string (YYYY-MM-DD) into a human readable format (e.g. Oct 21, 2026)
+ */
+export function formatDate(isoStr: string | null | undefined): string {
+	if (!isoStr) return '—';
+	try {
+		const parts = isoStr.split('-');
+		if (parts.length === 3) {
+			const d = new Date(
+				parseInt(parts[0], 10),
+				parseInt(parts[1], 10) - 1,
+				parseInt(parts[2], 10)
+			);
+			return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+		}
+		return isoStr;
+	} catch {
+		return isoStr;
+	}
+}

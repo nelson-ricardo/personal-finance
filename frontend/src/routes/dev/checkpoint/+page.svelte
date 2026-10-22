@@ -37,7 +37,7 @@
 </script>
 
 <svelte:head>
-	<title>Database Checkpoints — UAT & Dev Control Panel</title>
+	<title>Database Checkpoints — Homeledger Dev</title>
 </svelte:head>
 
 <div class="space-y-6 sm:space-y-8 max-w-5xl mx-auto">

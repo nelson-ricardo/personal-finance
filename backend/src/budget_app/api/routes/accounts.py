@@ -1,10 +1,10 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, status, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session
 
 from budget_app.db import get_session
-from budget_app.schemas import AccountCreate, AccountResponse, AccountUpdate, AccountType
+from budget_app.schemas import AccountCreate, AccountResponse, AccountType, AccountUpdate
 from budget_app.services import account_service
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])

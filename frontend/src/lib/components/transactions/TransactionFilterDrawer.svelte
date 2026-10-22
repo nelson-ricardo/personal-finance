@@ -6,6 +6,7 @@
 	import type { EnvelopeCategoryWithEnvelopes } from '#lib/schemas/category.ts';
 	import type { ResolvedPathname } from '$app/types';
 	import { getLocalDateString } from '#lib/utils/formatters.ts';
+	import { getUserVisibleCategories } from '#lib/utils/categories.ts';
 
 	let {
 		open = false,
@@ -43,6 +44,8 @@
 	let selectedType = $state(filters.transaction_type || '');
 	// svelte-ignore state_referenced_locally
 	let showReversed = $state(filters.include_reversed);
+
+	const displayCategories = $derived(getUserVisibleCategories(categories));
 
 	$effect(() => {
 		selectedDateFrom = filters.date_from || '';
@@ -256,9 +259,9 @@
 						class="w-full px-2.5 py-1.5 rounded-xl border border-brand-300 text-xs font-sans text-brand-900 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
 					>
 						<option value="">All Envelopes</option>
-						{#each categories.filter((c) => c.name !== 'System') as cat (cat.id)}
+						{#each displayCategories as cat (cat.id ?? cat.name)}
 							<optgroup label={cat.name}>
-								{#each cat.envelopes as env (env.id)}
+								{#each cat.envelopes as env (env.id ?? env.name)}
 									<option value={env.name}>{env.name}</option>
 								{/each}
 							</optgroup>

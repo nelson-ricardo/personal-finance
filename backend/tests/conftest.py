@@ -1,16 +1,18 @@
 import os
-import pytest
+from pathlib import Path
 from typing import Generator
-from dotenv import load_dotenv
+
+import pytest
 from alembic.config import Config
-from alembic import command
-from sqlalchemy import create_engine as create_sqla_engine, text
-from sqlmodel import Session, create_engine, SQLModel, select
+from dotenv import load_dotenv
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine as create_sqla_engine
+from sqlalchemy import text
+from sqlmodel import Session, create_engine, select
+
+from alembic import command
 from budget_app.api.main import app
 from budget_app.db import get_session
-
-from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
@@ -64,9 +66,10 @@ def setup_test_database() -> Generator[None, None, None]:
 
     # Step 3: Ensure base system category, system envelopes, and cash account exist
     from decimal import Decimal
+
     from budget_app.models import Envelope, EnvelopeCategory
-    from budget_app.schemas import AccountCreate, AccountType, SystemEnvelopeType
     from budget_app.repositories import account_repo
+    from budget_app.schemas import AccountCreate, AccountType, SystemEnvelopeType
 
     init_engine = create_engine(TEST_DATABASE_URL)
     with Session(init_engine) as init_session:

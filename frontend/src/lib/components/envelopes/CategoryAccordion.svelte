@@ -76,47 +76,49 @@
 				</span>
 			</div>
 
-			<!-- Category Quick Actions (stop propagation so clicking actions does not toggle accordion) -->
-			<!-- svelte-ignore a11y_click_events_have_key_events -->
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div
-				class="flex items-center gap-1 border-l border-brand-200 pl-2 sm:pl-3"
-				onclick={(e) => e.stopPropagation()}
-			>
-				<button
-					type="button"
-					onclick={() => onaddenvelope(category.name)}
-					class="p-1.5 text-brand-500 hover:text-brand-900 hover:bg-brand-200/80 rounded-lg transition-colors cursor-pointer"
-					title="Add envelope to {category.name}"
-					aria-label="Add envelope to {category.name}"
+			<!-- Category Quick Actions (Only for user-created categories) -->
+			{#if category.id != null}
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="flex items-center gap-1 border-l border-brand-200 pl-2 sm:pl-3"
+					onclick={(e) => e.stopPropagation()}
 				>
-					<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2.5"
-							d="M12 4v16m8-8H4"
-						/>
-					</svg>
-				</button>
+					<button
+						type="button"
+						onclick={() => onaddenvelope(category.name)}
+						class="p-1.5 text-brand-500 hover:text-brand-900 hover:bg-brand-200/80 rounded-lg transition-colors cursor-pointer"
+						title="Add envelope to {category.name}"
+						aria-label="Add envelope to {category.name}"
+					>
+						<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2.5"
+								d="M12 4v16m8-8H4"
+							/>
+						</svg>
+					</button>
 
-				<button
-					type="button"
-					onclick={() => oneditcategory(category)}
-					class="p-1.5 text-brand-500 hover:text-brand-900 hover:bg-brand-200/80 rounded-lg transition-colors cursor-pointer"
-					title="Edit category {category.name}"
-					aria-label="Edit category {category.name}"
-				>
-					<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-						/>
-					</svg>
-				</button>
-			</div>
+					<button
+						type="button"
+						onclick={() => oneditcategory(category)}
+						class="p-1.5 text-brand-500 hover:text-brand-900 hover:bg-brand-200/80 rounded-lg transition-colors cursor-pointer"
+						title="Edit category {category.name}"
+						aria-label="Edit category {category.name}"
+					>
+						<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+							/>
+						</svg>
+					</button>
+				</div>
+			{/if}
 		</div>
 	</div>
 

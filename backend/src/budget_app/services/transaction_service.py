@@ -8,17 +8,15 @@ Implements core double-entry accounting mechanics for:
 
 from datetime import date
 from decimal import Decimal
-from typing import List
 
 from sqlmodel import Session
 
-from budget_app.models import Account, EnvelopeSplit, Ledger, Transaction
+from budget_app.models import Account, EnvelopeSplit, Transaction
 from budget_app.repositories import (
     account_repo,
     category_repo,
     envelope_repo,
     envelope_split_repo,
-    ledger_repo,
     transaction_repo,
 )
 from budget_app.schemas import (
@@ -28,8 +26,6 @@ from budget_app.schemas import (
     EnvelopeSplitResponse,
     FinancedTransaction,
     FinancedTransactionUpdateRequest,
-    LedgerRequest,
-    LedgerResponse,
     SystemEnvelopeType,
     TransactionDetailResponse,
     TransactionRequest,
@@ -37,7 +33,6 @@ from budget_app.schemas import (
     TransactionType,
     TransactionUpdateRequest,
 )
-
 
 
 def add_reg_transaction(session: Session, transaction: TransactionRequest) -> Transaction:
@@ -158,12 +153,11 @@ def add_financed_transaction(session: Session, transaction: FinancedTransaction)
         envelope_name = f"{transaction.merchant.strip()} - {transaction.term}"
 
     cat_id = None
-    if getattr(transaction, "category_name", None):
-        cat_name = transaction.category_name.strip()
-        if cat_name:
-            cat = category_repo.get_category_by_name(session, cat_name)
-            if cat:
-                cat_id = cat.id
+    raw_cat_name = getattr(transaction, "category_name", None)
+    if isinstance(raw_cat_name, str) and raw_cat_name.strip():
+        cat = category_repo.get_category_by_name(session, raw_cat_name.strip())
+        if cat:
+            cat_id = cat.id
 
     envelope_used = envelope_repo.get_or_create_envelope(
         session,
@@ -223,6 +217,9 @@ def calculate_transaction_total(transaction: Transaction) -> Decimal:
     """
     if not transaction.splits:
         return Decimal("0.00")
+
+    if transaction.destination_account_id is not None:
+        return abs(transaction.splits[0].amount)
 
     if transaction.transaction_type in (
         TransactionType.FINANCED,
@@ -389,10 +386,20 @@ def get_transactions(
     # Convert to response models with total calculations
     results: list[TransactionResponse] = []
     for tx in transactions:
+        # Hide market adjustments from general transaction view
+        if tx.merchant == "Market Adjustment" and envelope != "Account Adjustment":
+            continue
+
         total = calculate_transaction_total(tx)
         payment_name = tx.account.name if tx.account else ""
         if tx.id is None or tx.payment_method_id is None:
             continue
+
+        dest_acc = getattr(tx, "destination_account", None)
+        if not dest_acc and tx.destination_account_id is not None:
+            dest_acc = session.get(Account, tx.destination_account_id)
+        dest_name = dest_acc.name if dest_acc else None
+
         results.append(
             TransactionResponse(
                 id=tx.id,
@@ -403,6 +410,8 @@ def get_transactions(
                 is_reconciled=tx.is_reconciled,
                 payment_method_id=tx.payment_method_id,
                 payment_method_name=payment_name,
+                destination_account_id=tx.destination_account_id,
+                destination_account_name=dest_name,
                 transaction_type=tx.transaction_type,
                 total=total,
             )
@@ -509,6 +518,11 @@ def get_transaction_by_id(session: Session, transaction_id: int) -> TransactionD
         if split.id is not None and split.envelope_id is not None
     ]
 
+    dest_acc = getattr(tx, "destination_account", None)
+    if not dest_acc and tx.destination_account_id is not None:
+        dest_acc = session.get(Account, tx.destination_account_id)
+    dest_name = dest_acc.name if dest_acc else None
+
     return TransactionDetailResponse(
         id=tx.id,
         merchant=tx.merchant,
@@ -518,6 +532,8 @@ def get_transaction_by_id(session: Session, transaction_id: int) -> TransactionD
         is_reconciled=tx.is_reconciled,
         payment_method_id=tx.payment_method_id,
         payment_method_name=payment_name,
+        destination_account_id=tx.destination_account_id,
+        destination_account_name=dest_name,
         transaction_type=tx.transaction_type,
         total=total,
         splits=envelope_splits,

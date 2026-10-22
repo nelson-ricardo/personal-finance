@@ -89,15 +89,9 @@
 		<div class="flex flex-col min-w-0">
 			<div class="flex items-center gap-1.5 flex-wrap">
 				<span
-					class="font-sans font-extrabold {titleSize} tracking-tight text-brand-900 leading-none truncate"
+					class="font-sans font-bold {titleSize} tracking-tight text-brand-900 leading-snug pb-0.5"
 				>
-					[{APP_CONFIG.name}]
-				</span>
-				<span
-					class="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-brand-100 text-brand-700 tracking-wider uppercase shrink-0"
-					title="Placeholder name. Replace with your brand name in src/lib/config.ts"
-				>
-					Name Here
+					{APP_CONFIG.name}
 				</span>
 			</div>
 			{#if showTagline}

@@ -1,15 +1,13 @@
 """Integration tests for the /dev/checkpoints API endpoints."""
 
-from decimal import Decimal
-from pathlib import Path
 import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from budget_app.api.routes import accounts, categories, dev as dev_routes
+from budget_app.api.routes import accounts, categories
+from budget_app.api.routes import dev as dev_routes
 from budget_app.db import get_session
-from budget_app.services import checkpoint_service
 
 
 @pytest.fixture(autouse=True)

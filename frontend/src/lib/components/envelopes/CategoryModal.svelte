@@ -156,7 +156,7 @@
 		</form>
 
 		<!-- Delete Category Section -->
-		{#if category && category.name !== 'System'}
+		{#if category && category.id != null && category.name !== 'System' && category.name !== 'Credit Card Payments'}
 			<div class="mt-6 pt-5 border-t border-brand-200/80">
 				<div
 					class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-[#6b1d2f]/5 border border-[#6b1d2f]/20"

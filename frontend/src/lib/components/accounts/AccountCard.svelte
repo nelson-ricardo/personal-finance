@@ -138,49 +138,47 @@
 		</div>
 	{/if}
 
-	<!-- Card Details Row (Responsive Grid) -->
-	<div
-		class="grid grid-cols-2 gap-2.5 sm:gap-3 py-2.5 sm:py-3 border-t border-b border-brand-100 text-xs"
-	>
-		<div class="min-w-0">
-			<span class="text-brand-600 block text-[11px] sm:text-xs truncate">Statement Bal</span>
-			<span class="font-mono tabular-nums font-semibold text-brand-900 truncate block">
-				{account.total_statement_balance ? formatCurrency(account.total_statement_balance) : '—'}
-			</span>
-		</div>
+	<!-- Card Details Row (Only for Credit Cards and Loans) -->
+	{#if account.account_type !== 'cash'}
+		<div
+			class="grid grid-cols-2 gap-2.5 sm:gap-3 py-2.5 sm:py-3 border-t border-b border-brand-100 text-xs"
+		>
+			<div class="min-w-0">
+				<span class="text-brand-600 block text-[11px] sm:text-xs truncate">Statement Bal</span>
+				<span class="font-mono tabular-nums font-semibold text-brand-900 truncate block">
+					{account.total_statement_balance ? formatCurrency(account.total_statement_balance) : '—'}
+				</span>
+			</div>
 
-		<div class="min-w-0">
-			<span class="text-brand-600 block text-[11px] sm:text-xs truncate">Interest Saving</span>
-			<span class="font-mono tabular-nums font-semibold text-brand-900 truncate block">
-				{account.interest_saving_balance ? formatCurrency(account.interest_saving_balance) : '—'}
-			</span>
-		</div>
+			<div class="min-w-0">
+				<span class="text-brand-600 block text-[11px] sm:text-xs truncate">Interest Saving</span>
+				<span class="font-mono tabular-nums font-semibold text-brand-900 truncate block">
+					{account.interest_saving_balance ? formatCurrency(account.interest_saving_balance) : '—'}
+				</span>
+			</div>
 
-		<div class="min-w-0">
-			<span class="text-brand-600 block text-[11px] sm:text-xs truncate">Due Date</span>
-			<span class="font-mono tabular-nums font-semibold text-brand-900 truncate block">
-				{#if account.due_date}
-					{getOrdinalSuffix(account.due_date)} of mo
-				{:else}
-					—
-				{/if}
-			</span>
-		</div>
+			<div class="min-w-0">
+				<span class="text-brand-600 block text-[11px] sm:text-xs truncate">Due Date</span>
+				<span class="font-mono tabular-nums font-semibold text-brand-900 truncate block">
+					{#if account.due_date}
+						{getOrdinalSuffix(account.due_date)} of mo
+					{:else}
+						—
+					{/if}
+				</span>
+			</div>
 
-		<div class="min-w-0">
-			<span class="text-brand-600 block text-[11px] sm:text-xs truncate">Monthly Payment</span>
-			<span class="font-mono tabular-nums font-semibold text-brand-900 truncate block">
-				{account.monthly_payment ? formatCurrency(account.monthly_payment) : '—'}
-			</span>
+			<div class="min-w-0">
+				<span class="text-brand-600 block text-[11px] sm:text-xs truncate">Monthly Payment</span>
+				<span class="font-mono tabular-nums font-semibold text-brand-900 truncate block">
+					{account.monthly_payment ? formatCurrency(account.monthly_payment) : '—'}
+				</span>
+			</div>
 		</div>
-	</div>
+	{/if}
 
 	<!-- Card Footer Action Buttons -->
-	<div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-brand-100/70">
-		<span class="text-[11px] font-mono text-brand-500">
-			ID #{account.id}
-		</span>
-
+	<div class="flex flex-wrap items-center justify-end gap-1.5 pt-1 border-t border-brand-100/70">
 		<div class="flex flex-wrap items-center gap-1.5">
 			{#if !account.is_active}
 				<form method="POST" action="?/activateAccount" class="inline">

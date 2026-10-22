@@ -1,5 +1,7 @@
 from decimal import Decimal
+
 import pytest
+
 from budget_app.repositories import account_repo, category_repo, envelope_repo
 from budget_app.schemas import (
     AccountBase,
@@ -29,6 +31,28 @@ class TestCreateAccount:
         assert account.name == "Savings Card"
         assert account.account_type == AccountType.CREDIT_CARD
         assert account.current_balance == Decimal("500")
+
+    def test_create_investment_account_success(self, session):
+        acc_info = AccountCreate(
+            name="Vanguard Index",
+            account_type=AccountType.INVESTMENT,
+            current_balance=Decimal("15000.00"),
+            due_date=15,
+            monthly_payment=Decimal("100"),
+        )
+        account = account_service.create_account(session, acc_info)
+
+        assert account is not None
+        assert account.id is not None
+        assert account.name == "Vanguard Index"
+        assert account.account_type == AccountType.INVESTMENT
+        assert account.current_balance == Decimal("15000.00")
+        assert account.due_date is None
+        assert account.monthly_payment is None
+        assert (
+            account_service.get_account_balance(session, "Vanguard Index")
+            == Decimal("15000.00")
+        )
 
     def test_create_second_cash_account_raises_error(self, session):
         acc_info = AccountCreate(
@@ -472,27 +496,24 @@ class TestMakePayment:
             session, target="ChaseSapphire", amount=Decimal("200.00")
         )
 
-        # 4. Assert two transactions returned
-        assert len(txs) == 2
-        tx_pay, tx_bal = txs
+        # 4. Assert single transaction returned with multiple splits
+        assert len(txs) == 1
+        tx = txs[0]
 
-        # Cash outflow transaction
-        assert tx_pay.account is not None
-        assert tx_pay.account.name == "Cash"
-        assert tx_pay.transaction_type == TransactionType.EXPENSE
-        assert len(tx_pay.splits) == 1
-        assert tx_pay.splits[0].envelope is not None
-        assert tx_pay.splits[0].envelope.name == "Credit Card Payment"
-        assert tx_pay.splits[0].amount == Decimal("-200.00")
-
-        # Card debt reduction transaction
-        assert tx_bal.account is not None
-        assert tx_bal.account.name == "ChaseSapphire"
-        assert tx_bal.transaction_type == TransactionType.INCOME
-        assert len(tx_bal.splits) == 1
-        assert tx_bal.splits[0].envelope is not None
-        assert tx_bal.splits[0].envelope.name == "Account Adjustment"
-        assert tx_bal.splits[0].amount == Decimal("200.00")
+        # Cash outflow transaction with destination account linkage
+        assert tx.account is not None
+        assert tx.account.name == "Cash"
+        assert tx.destination_account_id is not None
+        assert tx.transaction_type == TransactionType.EXPENSE
+        assert len(tx.splits) == 2
+        # Split 1: Credit Card Payment deduction
+        assert tx.splits[0].envelope is not None
+        assert tx.splits[0].envelope.name == "Credit Card Payment"
+        assert tx.splits[0].amount == Decimal("-200.00")
+        # Split 2: Account Adjustment balancing offset
+        assert tx.splits[1].envelope is not None
+        assert tx.splits[1].envelope.name == "Account Adjustment"
+        assert tx.splits[1].amount == Decimal("200.00")
 
         # 5. Assert updated balances
         # Cash net change: +1000 - 200 = +800
@@ -545,7 +566,8 @@ class TestMakePayment:
         txs = account_service.make_payment(
             session, target="CarLoan", amount=Decimal("450.00")
         )
-        assert len(txs) == 2
+        assert len(txs) == 1
+        assert len(txs[0].splits) == 2
 
         # 5. Assert updated balances
         # Cash net change: +2500 - 450 = +2050
@@ -562,6 +584,60 @@ class TestMakePayment:
             == Decimal("0.00")
         )
 
+    def test_make_payment_investment_transfer_flow(self, session):
+        cash_bal_before = account_service.get_account_balance(session, "Cash")
+        envelope_service.add_to_cash(session, Decimal("2000.00"), "Paycheck")
+
+        # Create an Investments envelope and assign $600 to it
+        envelope_service.create_envelope(
+            session, EnvelopeBase(name="Investments")
+        )
+        envelope_service.assign_to_envelope(
+            session, destination="Investments", amount=Decimal("600.00")
+        )
+
+        # Create an Investment account with $5,000 initial balance
+        account_service.create_account(
+            session,
+            AccountCreate(
+                name="Schwab Index",
+                account_type=AccountType.INVESTMENT,
+                current_balance=Decimal("5000.00"),
+            ),
+        )
+
+        # Transfer $600 from Cash to Schwab Index using the Investments envelope
+        txs = account_service.make_payment(
+            session,
+            target="Schwab Index",
+            amount=Decimal("600.00"),
+            envelope_name="Investments",
+        )
+        assert len(txs) == 1
+        tx = txs[0]
+        assert tx.merchant == "Transfer to Schwab Index"
+        assert tx.destination_account_id is not None
+        assert len(tx.splits) == 2
+        assert tx.splits[0].envelope.name == "Investments"
+        assert tx.splits[0].amount == Decimal("-600.00")
+
+        # Cash balance net change: +2000 - 600 = +1400
+        assert (
+            account_service.get_account_balance(session, "Cash")
+            == cash_bal_before + Decimal("1400.00")
+        )
+        # Investment balance increased from $5,000 to $5,600
+        assert (
+            account_service.get_account_balance(session, "Schwab Index")
+            == Decimal("5600.00")
+        )
+        # Investments envelope was fully consumed
+        inv_env = envelope_repo.get_envelope_by_name(session, "Investments")
+        assert (
+            envelope_repo.get_balance_for_envelope(session, inv_env)
+            == Decimal("0.00")
+        )
+
     def test_make_payment_target_not_found_raises_error(self, session):
         with pytest.raises(ValueError, match="account GhostAccount does not exist"):
             account_service.make_payment(
@@ -570,7 +646,7 @@ class TestMakePayment:
 
     def test_make_payment_to_cash_account_raises_error(self, session):
         with pytest.raises(
-            ValueError, match="is not a loan or credit card"
+            ValueError, match="is not a loan, credit card, or investment account"
         ):
             account_service.make_payment(
                 session, target="Cash", amount=Decimal("50.00")
@@ -856,3 +932,52 @@ class TestAdjustAccountBalance:
                 account_name="FakeAccount",
                 target_balance=Decimal("100.00"),
             )
+
+    def test_adjust_investment_balance_gain_and_loss(self, session):
+        # Create an investment account starting at $10,000
+        account_service.create_account(
+            session,
+            AccountCreate(
+                name="Fidelity Brokerage",
+                account_type=AccountType.INVESTMENT,
+                current_balance=Decimal("10000.00"),
+            ),
+        )
+        assert (
+            account_service.get_account_balance(session, "Fidelity Brokerage")
+            == Decimal("10000.00")
+        )
+
+        # 1. Market gain: Adjust up to $10,800 (+800 gain)
+        tx_gain = account_service.adjust_account_balance(
+            session,
+            account_name="Fidelity Brokerage",
+            target_balance=Decimal("10800.00"),
+        )
+        assert tx_gain is not None
+        assert tx_gain.transaction_type == TransactionType.INCOME
+        assert len(tx_gain.splits) == 1
+        assert tx_gain.splits[0].amount == Decimal("800.00")
+        assert tx_gain.splits[0].envelope is not None
+        assert tx_gain.splits[0].envelope.name == "Account Adjustment"
+        assert (
+            account_service.get_account_balance(session, "Fidelity Brokerage")
+            == Decimal("10800.00")
+        )
+
+        # 2. Market drop: Adjust down to $9,500 (-1300 drop)
+        tx_loss = account_service.adjust_account_balance(
+            session,
+            account_name="Fidelity Brokerage",
+            target_balance=Decimal("9500.00"),
+        )
+        assert tx_loss is not None
+        assert tx_loss.transaction_type == TransactionType.EXPENSE
+        assert len(tx_loss.splits) == 1
+        assert tx_loss.splits[0].amount == Decimal("-1300.00")
+        assert tx_loss.splits[0].envelope is not None
+        assert tx_loss.splits[0].envelope.name == "Account Adjustment"
+        assert (
+            account_service.get_account_balance(session, "Fidelity Brokerage")
+            == Decimal("9500.00")
+        )

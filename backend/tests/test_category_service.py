@@ -1,9 +1,9 @@
 """Unit tests for category_service."""
 
 from decimal import Decimal
+
 import pytest
 
-from budget_app.models import EnvelopeCategory
 from budget_app.schemas import (
     EnvelopeBase,
     EnvelopeCategoryUpdate,
@@ -115,7 +115,7 @@ class TestDeleteCategory:
             category_service.get_category_by_name(session, "Empty Category")
 
     def test_delete_category_with_envelopes_raises(self, session):
-        cat = category_service.create_category(session, name="Bills")
+        category_service.create_category(session, name="Bills")
         envelope_service.create_envelope(
             session,
             EnvelopeBase(name="Electric"),
