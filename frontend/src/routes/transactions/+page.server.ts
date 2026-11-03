@@ -62,9 +62,14 @@ async function handleApiError(
 
 function getDefaultDateRange(): { dateFrom: string; dateTo: string } {
 	const now = new Date();
-	const year = now.getFullYear();
-	const month = String(now.getMonth() + 1).padStart(2, '0');
-	const dateFrom = `${year}-${month}-01`;
+	const oneMonthAgo = new Date(now);
+	const targetMonth = oneMonthAgo.getMonth() - 1;
+	oneMonthAgo.setMonth(targetMonth);
+	// Handle month overflow edge case (e.g. March 31 -> Feb 28/29 instead of March 2/3)
+	if (oneMonthAgo.getMonth() === (targetMonth + 12 + 1) % 12) {
+		oneMonthAgo.setDate(0);
+	}
+	const dateFrom = getLocalDateString(oneMonthAgo);
 	const dateTo = getLocalDateString(now);
 	return { dateFrom, dateTo };
 }

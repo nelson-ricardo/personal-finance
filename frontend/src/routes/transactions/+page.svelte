@@ -9,12 +9,15 @@
 	import TransactionDrawer from '#lib/components/transactions/TransactionDrawer.svelte';
 	import TransactionDeleteModal from '#lib/components/transactions/TransactionDeleteModal.svelte';
 	import TransactionBulkBar from '#lib/components/transactions/TransactionBulkBar.svelte';
+	import TransactionBatchModal from '#lib/components/transactions/TransactionBatchModal.svelte';
+	import { invalidateAll } from '$app/navigation';
 
 	let { data }: PageProps = $props();
 
 	// Modal & Drawer State
 	let isFilterOpen = $state(false);
 	let isModalOpen = $state(false);
+	let isBatchModalOpen = $state(false);
 	let modalDraft = $state<{
 		merchant: string;
 		amount: string;
@@ -209,6 +212,16 @@
 				{isMobileSelectMode ? 'Cancel' : 'Select'}
 			</button>
 
+			<!-- Batch Entry & CSV Button -->
+			<button
+				type="button"
+				onclick={() => (isBatchModalOpen = true)}
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-brand-300 bg-white text-brand-800 text-xs font-semibold hover:bg-brand-50 transition-colors shadow-2xs cursor-pointer"
+				title="Batch enter purchases or import a CSV file"
+			>
+				<span>📥 Batch / CSV</span>
+			</button>
+
 			<!-- Primary New Transaction Button -->
 			<button
 				type="button"
@@ -236,6 +249,7 @@
 			accounts={data.accounts}
 			categories={data.categories}
 			onsplit={handleQuickAddSplit}
+			onbatch={() => (isBatchModalOpen = true)}
 		/>
 	</div>
 
@@ -358,6 +372,17 @@
 	onclose={() => {
 		isModalOpen = false;
 		modalDraft = null;
+	}}
+/>
+
+<!-- Batch Transactions & CSV Import Modal -->
+<TransactionBatchModal
+	open={isBatchModalOpen}
+	accounts={data.accounts}
+	categories={data.categories}
+	onclose={() => (isBatchModalOpen = false)}
+	onsuccess={() => {
+		invalidateAll();
 	}}
 />
 

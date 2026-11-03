@@ -11,7 +11,8 @@
 		formData,
 		accounts,
 		categories,
-		onsplit
+		onsplit,
+		onbatch
 	}: {
 		formData: SuperValidated<Infer<typeof quickAddSchema>>;
 		accounts: Account[];
@@ -24,6 +25,7 @@
 			envelope_name: string;
 			note: string;
 		}) => void;
+		onbatch?: () => void;
 	} = $props();
 
 	// svelte-ignore state_referenced_locally
@@ -88,16 +90,28 @@
 				Quick-Add Single Expense
 			</h2>
 		</div>
-		<span class="text-xs text-brand-600 hidden sm:inline">
-			Need multiple envelopes?
-			<button
-				type="button"
-				onclick={handleSplitClick}
-				class="font-semibold text-brand-700 hover:text-brand-900 underline underline-offset-2 ml-1 cursor-pointer transition-colors"
-			>
-				Use Split Builder →
-			</button>
-		</span>
+		<div class="text-xs text-brand-600 hidden sm:flex items-center gap-2">
+			<span>
+				Need multiple envelopes?
+				<button
+					type="button"
+					onclick={handleSplitClick}
+					class="font-semibold text-brand-700 hover:text-brand-900 underline underline-offset-2 ml-0.5 cursor-pointer transition-colors"
+				>
+					Split Builder →
+				</button>
+			</span>
+			{#if onbatch}
+				<span class="text-brand-300">•</span>
+				<button
+					type="button"
+					onclick={onbatch}
+					class="font-semibold text-brand-700 hover:text-brand-900 underline underline-offset-2 cursor-pointer transition-colors"
+				>
+					Batch Upload / CSV →
+				</button>
+			{/if}
+		</div>
 	</div>
 
 	{#if $quickErrors._errors}

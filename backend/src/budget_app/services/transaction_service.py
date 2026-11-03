@@ -8,6 +8,7 @@ Implements core double-entry accounting mechanics for:
 
 from datetime import date
 from decimal import Decimal
+from typing import List
 
 from sqlmodel import Session
 
@@ -35,7 +36,9 @@ from budget_app.schemas import (
 )
 
 
-def add_reg_transaction(session: Session, transaction: TransactionRequest) -> Transaction:
+def add_reg_transaction(
+    session: Session, transaction: TransactionRequest, commit: bool = True
+) -> Transaction:
 
     """Processes a regular transaction (income, expense, or transfer) and updates account balances.
 
@@ -94,9 +97,48 @@ def add_reg_transaction(session: Session, transaction: TransactionRequest) -> Tr
         )
         master_transaction.splits.append(cc_payment)
 
-    session.commit()
-    session.refresh(master_transaction)
+    if commit:
+        session.commit()
+        session.refresh(master_transaction)
+    else:
+        session.flush()
+        session.refresh(master_transaction)
     return master_transaction
+
+
+def add_bulk_transactions(
+    session: Session, transactions: List[TransactionRequest]
+) -> List[TransactionDetailResponse]:
+    """Processes multiple regular transactions atomically in a single batch.
+
+    If any transaction fails validation or database persistence, all staged transactions
+    are rolled back to preserve database integrity.
+
+    Args:
+        session: Active SQLModel database session.
+        transactions: List of TransactionRequest objects to process.
+
+    Returns:
+        List of TransactionDetailResponse objects for each created transaction.
+
+    Raises:
+        ValueError: If the transaction list is empty or any item fails validation.
+    """
+    if not transactions:
+        raise ValueError("Transaction list cannot be empty")
+
+    created_ids: List[int] = []
+    try:
+        for idx, tx_req in enumerate(transactions):
+            created_tx = add_reg_transaction(session, tx_req, commit=False)
+            if not created_tx.id:
+                raise ValueError(f"Failed to generate ID for transaction #{idx + 1}")
+            created_ids.append(created_tx.id)
+        session.commit()
+        return [get_transaction_by_id(session, tid) for tid in created_ids]
+    except Exception as e:
+        session.rollback()
+        raise ValueError(f"Batch upload failed: {str(e)}") from e
 
 
 def add_financed_transaction(session: Session, transaction: FinancedTransaction) -> Transaction:

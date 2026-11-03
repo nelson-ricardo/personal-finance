@@ -43,6 +43,7 @@ from budget_app.services.envelope_service import (
     update_envelope_info,
 )
 from budget_app.services.transaction_service import (
+    add_bulk_transactions,
     add_financed_transaction,
     add_reg_transaction,
     delete_transaction,
@@ -98,6 +99,7 @@ __all__ = [
     "assign_to_envelope",
     "transfer_from_unassigned",
     "add_reg_transaction",
+    "add_bulk_transactions",
     "add_financed_transaction",
     "get_transactions",
     "get_transaction",

@@ -20,6 +20,7 @@ from budget_app.schemas import (
     TransactionUpdateRequest,
 )
 from budget_app.services import (
+    add_bulk_transactions,
     add_financed_transaction,
     add_interest_charge,
     add_interest_earned,
@@ -62,6 +63,21 @@ def add_regular_transaction(
         
         return get_transaction_by_id(session, tx_id)
     except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+@router.post(
+    "/bulk",
+    response_model=List[TransactionDetailResponse],
+    status_code=status.HTTP_201_CREATED,
+)
+def add_bulk_transactions_route(
+    transactions: List[TransactionRequest],
+    session: Session = Depends(get_session),
+):
+    try:
+        return add_bulk_transactions(session, transactions)
+    except (ValueError, Exception) as e:
+        session.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @router.post("/financed", 

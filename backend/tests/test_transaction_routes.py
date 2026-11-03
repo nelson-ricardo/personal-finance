@@ -433,3 +433,54 @@ class TestInterestTransactionsRoute:
         response = client.post("/transactions/interest-earned", json=payload)
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "Cash/Savings" in response.json()["detail"]
+
+    def test_bulk_add_transactions_success(self, client: TestClient, test_setup):
+        payload = [
+            {
+                "merchant": "Gas Station",
+                "logged_date": "2026-10-24",
+                "payment_method_name": "Cash",
+                "transaction_type": "EXPENSE",
+                "note": "Fuel",
+                "splits": [{"envelope_name": "Utilities", "amount": "-45.00"}],
+            },
+            {
+                "merchant": "Supermarket",
+                "logged_date": "2026-10-24",
+                "payment_method_name": "Visa Card",
+                "transaction_type": "EXPENSE",
+                "note": "Food and Dining",
+                "splits": [
+                    {"envelope_name": "Groceries", "amount": "-100.00"},
+                    {"envelope_name": "Dining", "amount": "-50.00"},
+                ],
+            },
+        ]
+        response = client.post("/transactions/bulk", json=payload)
+        assert response.status_code == status.HTTP_201_CREATED
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["merchant"] == "Gas Station"
+        assert Decimal(str(data[0]["total"])) == Decimal("45.00")
+        assert len(data[1]["splits"]) >= 2
+
+    def test_bulk_add_transactions_rollback_on_failure(self, client: TestClient, test_setup):
+        payload = [
+            {
+                "merchant": "Valid Merchant",
+                "logged_date": "2026-10-24",
+                "payment_method_name": "Cash",
+                "transaction_type": "EXPENSE",
+                "splits": [{"envelope_name": "Groceries", "amount": "-25.00"}],
+            },
+            {
+                "merchant": "Invalid Merchant",
+                "logged_date": "2026-10-24",
+                "payment_method_name": "NonExistentAccount",
+                "transaction_type": "EXPENSE",
+                "splits": [{"envelope_name": "Groceries", "amount": "-25.00"}],
+            },
+        ]
+        response = client.post("/transactions/bulk", json=payload)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Batch upload failed" in response.json()["detail"]
