@@ -5,6 +5,8 @@ WORKDIR /app
 
 # Copy dependency manifests
 COPY package.json package-lock.json ./
+COPY vite.config.ts tsconfig.json ./
+COPY static ./static
 
 # --- Development Target ---
 FROM base AS dev

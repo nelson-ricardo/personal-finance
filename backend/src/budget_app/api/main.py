@@ -2,7 +2,7 @@ import os
 
 from fastapi import FastAPI
 
-from budget_app.api.routes import accounts, categories, envelopes, transactions
+from budget_app.api.routes import accounts, categories, envelopes, notifications, transactions
 
 app = FastAPI(title="Personal Finance API")
 
@@ -10,6 +10,7 @@ app.include_router(accounts.router)
 app.include_router(categories.router)
 app.include_router(envelopes.router)
 app.include_router(transactions.router)
+app.include_router(notifications.router)
 
 @app.get("/health")
 async def health():

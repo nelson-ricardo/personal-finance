@@ -67,3 +67,51 @@ sw.addEventListener('fetch', (event) => {
 
 	event.respondWith(respond());
 });
+
+// Push notification received in background
+sw.addEventListener('push', (event) => {
+	let payload = {
+		title: 'Homeledger Reminder',
+		body: 'You have an upcoming obligation.',
+		url: '/'
+	};
+
+	if (event.data) {
+		try {
+			payload = event.data.json();
+		} catch {
+			payload.body = event.data.text();
+		}
+	}
+
+	const options: NotificationOptions = {
+		body: payload.body,
+		icon: '/pwa-192x192.png',
+		badge: '/pwa-192x192.png',
+		data: { url: payload.url || '/' },
+		tag: 'homeledger-notification',
+		renotify: true
+	};
+
+	event.waitUntil(sw.registration.showNotification(payload.title || 'Homeledger', options));
+});
+
+// User taps on notification banner
+sw.addEventListener('notificationclick', (event) => {
+	event.notification.close();
+	const targetUrl = event.notification.data?.url || '/';
+
+	event.waitUntil(
+		sw.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+			for (const client of clients) {
+				if (client.url.includes(targetUrl) && 'focus' in client) {
+					return client.focus();
+				}
+			}
+			if (sw.clients.openWindow) {
+				return sw.clients.openWindow(targetUrl);
+			}
+		})
+	);
+});
+

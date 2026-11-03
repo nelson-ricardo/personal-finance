@@ -32,11 +32,15 @@ services:
       CHECKPOINTS_DIR: /app/checkpoints
       HOST: 0.0.0.0
       PORT: 8000
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_CLAIM_EMAIL: ${VAPID_CLAIM_EMAIL:-mailto:budgeter@example.com}
     volumes:
       - ./checkpoints:/app/checkpoints
       - ./backend/src:/app/src
       - ./backend/main.py:/app/main.py
       - ./backend/alembic:/app/alembic
+      - ./backend/alembic.ini:/app/alembic.ini
     ports:
       - "8000:8000"
     depends_on:
@@ -59,6 +63,8 @@ services:
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/static:/app/static
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
     ports:
       - "${FRONTEND_PORT:-5173}:${FRONTEND_PORT:-5173}"
     depends_on:

@@ -5,6 +5,7 @@
 	import '@fontsource-variable/jetbrains-mono';
 	import '@fontsource-variable/plus-jakarta-sans';
 	import Logo from '#lib/components/Logo.svelte';
+	import NotificationSettingsModal from '#lib/components/NotificationSettingsModal.svelte';
 	import { APP_CONFIG } from '#lib/config.ts';
 	import { page } from '$app/state';
 	import { browser } from '$app/env';
@@ -20,6 +21,7 @@
 
 	let isOnline = $state(true);
 	let installPromptEvent = $state<BeforeInstallPromptEvent | null>(null);
+	let showNotificationModal = $state(false);
 
 	onMount(() => {
 		if (browser) {
@@ -115,6 +117,17 @@
 
 				<!-- Header Utility Actions -->
 				<div class="flex items-center gap-2">
+					<!-- Notifications Bell Button -->
+					<button
+						type="button"
+						onclick={() => (showNotificationModal = true)}
+						class="inline-flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-brand-100/70 hover:bg-brand-200/80 text-brand-800 border border-brand-200/70 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 shadow-2xs cursor-pointer"
+						title="Due Date & Obligation Notifications"
+						aria-label="Notification Settings"
+					>
+						<span class="text-xs sm:text-sm">🔔</span>
+					</button>
+
 					<!-- Checkpoint Dev Pill (Accessible across all views & PWA) -->
 					<a
 						href={resolve('/dev/checkpoint')}
@@ -248,4 +261,10 @@
 			</a>
 		{/each}
 	</nav>
+
+	<!-- Notification Settings & Test Modal -->
+	<NotificationSettingsModal
+		open={showNotificationModal}
+		onclose={() => (showNotificationModal = false)}
+	/>
 </div>
