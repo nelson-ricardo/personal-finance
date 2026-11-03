@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session
 
 from budget_app.db import get_session
@@ -11,7 +11,11 @@ from budget_app.schemas.notification import (
     PushSubscriptionCreate,
     PushSubscriptionRead,
 )
-from budget_app.services import notification_service
+from budget_app.schemas.obligation import (
+    NotificationConfigResponse,
+    NotificationConfigUpdate,
+)
+from budget_app.services import notification_service, obligation_service
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -86,3 +90,29 @@ def send_test_notification(
         "status": "completed",
         **result,
     }
+
+
+@router.get("/settings", response_model=NotificationConfigResponse)
+def get_notification_settings(
+    session: Session = Depends(get_session),
+):
+    """Retrieves current daily reminder preferences."""
+    return obligation_service.get_notification_config(session)
+
+
+@router.put("/settings", response_model=NotificationConfigResponse)
+def update_notification_settings(
+    payload: NotificationConfigUpdate,
+    session: Session = Depends(get_session),
+):
+    """Updates daily reminder time and preferences."""
+    return obligation_service.update_notification_config(session, payload)
+
+
+@router.post("/run-reminders")
+def run_due_reminders(
+    force: bool = Query(default=True, description="Force send regardless of time of day"),
+    session: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """Runs the obligation due date evaluator and dispatches push notifications."""
+    return notification_service.check_and_dispatch_due_reminders(session, force=force)

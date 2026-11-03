@@ -1,6 +1,7 @@
 """Tests for notification API routes and subscription management."""
 
 from unittest.mock import patch
+
 from fastapi import status
 from fastapi.testclient import TestClient
 from sqlmodel import Session

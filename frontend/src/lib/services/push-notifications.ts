@@ -126,7 +126,7 @@ export async function triggerTestPush(): Promise<{ success: boolean; data?: any;
 			body: JSON.stringify({
 				title: '🔔 Homeledger Test',
 				body: 'Push notifications are working! Your phone will alert you for upcoming due dates.',
-				url: '/'
+				url: '/obligations'
 			})
 		});
 
@@ -142,3 +142,61 @@ export async function triggerTestPush(): Promise<{ success: boolean; data?: any;
 		return { success: false, error: message };
 	}
 }
+
+export interface NotificationSettingsData {
+	reminder_time: string;
+	reminder_days_ahead: number;
+	is_enabled: boolean;
+	last_dispatched_date?: string | null;
+}
+
+export async function fetchNotificationSettings(): Promise<NotificationSettingsData | null> {
+	try {
+		const res = await fetch('/api/notifications/settings');
+		if (!res.ok) return null;
+		return await res.json();
+	} catch {
+		return null;
+	}
+}
+
+export async function saveNotificationSettings(
+	settings: Partial<NotificationSettingsData>
+): Promise<{ success: boolean; data?: NotificationSettingsData; error?: string }> {
+	try {
+		const res = await fetch('/api/notifications/settings', {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(settings)
+		});
+
+		if (!res.ok) {
+			const text = await res.text();
+			throw new Error(text);
+		}
+
+		const data = await res.json();
+		return { success: true, data };
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { success: false, error: message };
+	}
+}
+
+export async function triggerDueReminders(): Promise<{ success: boolean; data?: any; error?: string }> {
+	try {
+		const res = await fetch('/api/notifications/run-reminders', {
+			method: 'POST'
+		});
+		if (!res.ok) {
+			const text = await res.text();
+			throw new Error(text);
+		}
+		const data = await res.json();
+		return { success: true, data };
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { success: false, error: message };
+	}
+}
+

@@ -6,7 +6,11 @@
 		getExistingSubscription,
 		subscribeToPush,
 		unsubscribeFromPush,
-		triggerTestPush
+		triggerTestPush,
+		fetchNotificationSettings,
+		saveNotificationSettings,
+		triggerDueReminders,
+		type NotificationSettingsData
 	} from '#lib/services/push-notifications.ts';
 
 	let {
@@ -22,6 +26,80 @@
 	let isSubscribed = $state(false);
 	let loading = $state(false);
 	let feedbackMessage = $state<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+	// Daily Reminder Schedule State
+	let reminderTime = $state('09:00');
+	let reminderDaysAhead = $state(3);
+	let remindersEnabled = $state(true);
+	let savingSchedule = $state(false);
+
+	// Refresh device push status and schedule when opening modal
+	$effect(() => {
+		if (open) {
+			checkStatus();
+			loadSettings();
+		} else {
+			feedbackMessage = null;
+		}
+	});
+
+	async function loadSettings() {
+		const settings = await fetchNotificationSettings();
+		if (settings) {
+			reminderTime = settings.reminder_time || '09:00';
+			reminderDaysAhead = settings.reminder_days_ahead ?? 3;
+			remindersEnabled = settings.is_enabled ?? true;
+		}
+	}
+
+	async function handleSaveSchedule() {
+		savingSchedule = true;
+		feedbackMessage = null;
+		const res = await saveNotificationSettings({
+			reminder_time: reminderTime,
+			reminder_days_ahead: Number(reminderDaysAhead),
+			is_enabled: remindersEnabled
+		});
+		savingSchedule = false;
+
+		if (res.success) {
+			feedbackMessage = {
+				type: 'success',
+				text: `Daily reminder time updated to ${reminderTime} (${reminderDaysAhead} days ahead).`
+			};
+		} else {
+			feedbackMessage = {
+				type: 'error',
+				text: res.error || 'Failed to update reminder schedule.'
+			};
+		}
+	}
+
+	async function handleRunDueReminders() {
+		loading = true;
+		feedbackMessage = null;
+		const res = await triggerDueReminders();
+		loading = false;
+
+		if (res.success) {
+			if (res.data?.due_count > 0) {
+				feedbackMessage = {
+					type: 'success',
+					text: `Evaluated due dates: ${res.data.due_count} upcoming obligation(s) found and push notification dispatched!`
+				};
+			} else {
+				feedbackMessage = {
+					type: 'info',
+					text: 'Evaluated due dates: No obligations due within your reminder window.'
+				};
+			}
+		} else {
+			feedbackMessage = {
+				type: 'error',
+				text: res.error || 'Failed to run due reminders.'
+			};
+		}
+	}
 
 	// Refresh device push status when opening modal
 	$effect(() => {
@@ -160,6 +238,79 @@
 				{:else}
 					<span class="text-brand-500 font-medium">Not Subscribed</span>
 				{/if}
+			</div>
+		</div>
+
+		<!-- Daily Push Reminder Schedule -->
+		<div class="p-3.5 rounded-xl bg-white border border-brand-200/90 shadow-2xs space-y-3">
+			<div class="flex items-center justify-between">
+				<div>
+					<h4 class="text-xs font-semibold text-brand-900">Daily Push Schedule</h4>
+					<p class="text-[11px] text-brand-500">Pick when to receive upcoming obligation alerts.</p>
+				</div>
+				<label class="relative inline-flex items-center cursor-pointer">
+					<input
+						type="checkbox"
+						bind:checked={remindersEnabled}
+						class="sr-only peer"
+					/>
+					<div
+						class="w-9 h-5 bg-brand-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-500"
+					></div>
+				</label>
+			</div>
+
+			<div class="grid grid-cols-2 gap-2.5 pt-1">
+				<div>
+					<label for="reminder-time" class="block text-[11px] font-medium text-brand-700 mb-1">Alert Time</label>
+					<input
+						id="reminder-time"
+						type="time"
+						bind:value={reminderTime}
+						disabled={!remindersEnabled}
+						class="w-full text-xs font-mono px-2.5 py-1.5 rounded-lg border border-brand-200 bg-brand-50/50 text-brand-900 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-50"
+					/>
+				</div>
+				<div>
+					<label for="reminder-days" class="block text-[11px] font-medium text-brand-700 mb-1">Advance Notice</label>
+					<select
+						id="reminder-days"
+						bind:value={reminderDaysAhead}
+						disabled={!remindersEnabled}
+						class="w-full text-xs px-2.5 py-1.5 rounded-lg border border-brand-200 bg-brand-50/50 text-brand-900 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-50"
+					>
+						<option value={1}>1 day before</option>
+						<option value={2}>2 days before</option>
+						<option value={3}>3 days before</option>
+						<option value={5}>5 days before</option>
+						<option value={7}>7 days before</option>
+					</select>
+				</div>
+			</div>
+
+			<div class="flex items-center justify-between pt-1">
+				<button
+					type="button"
+					onclick={handleSaveSchedule}
+					disabled={savingSchedule}
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-500 text-white hover:bg-brand-600 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
+				>
+					{#if savingSchedule}
+						<span class="animate-spin text-xs">⏳</span> Saving...
+					{:else}
+						<span>💾</span> Save Schedule
+					{/if}
+				</button>
+
+				<button
+					type="button"
+					onclick={handleRunDueReminders}
+					disabled={loading || !isSubscribed}
+					class="inline-flex items-center gap-1 text-[11px] font-medium text-brand-700 hover:text-brand-950 px-2 py-1 rounded hover:bg-brand-100/60 transition-colors cursor-pointer disabled:opacity-40"
+					title="Trigger evaluation and send push right now"
+				>
+					<span>⚡</span> Check Due Dates Now
+				</button>
 			</div>
 		</div>
 

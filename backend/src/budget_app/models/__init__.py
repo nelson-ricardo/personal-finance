@@ -12,6 +12,7 @@ from budget_app.models.category import EnvelopeCategory
 from budget_app.models.envelope import Envelope
 from budget_app.models.envelope_split import EnvelopeSplit
 from budget_app.models.ledger import Ledger
+from budget_app.models.obligation import NotificationConfig, Obligation
 from budget_app.models.push_subscription import PushSubscription
 from budget_app.models.transaction import Transaction
 from budget_app.schemas import EnvelopeTransfer
@@ -25,6 +26,8 @@ __all__ = [
     "EnvelopeCategory",
     "EnvelopeSplit",
     "Ledger",
+    "NotificationConfig",
+    "Obligation",
     "PushSubscription",
     "Transaction",
 ]

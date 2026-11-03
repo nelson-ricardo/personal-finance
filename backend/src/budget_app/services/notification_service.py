@@ -146,3 +146,87 @@ def broadcast_notification(
         "sent": sent_count,
         "failed": failed_count,
     }
+
+
+def check_and_dispatch_due_reminders(session: Session, force: bool = False) -> Dict[str, Any]:
+    """Evaluates upcoming obligations against reminder config and dispatches pushes."""
+    from datetime import date, datetime
+
+    from budget_app.models.obligation import NotificationConfig
+    from budget_app.services import obligation_service
+
+    config = session.exec(select(NotificationConfig)).first()
+    if not config:
+        config = NotificationConfig()
+        session.add(config)
+        session.commit()
+        session.refresh(config)
+
+    today = date.today()
+
+    if not force:
+        if not config.is_enabled:
+            return {"status": "skipped", "reason": "reminders_disabled"}
+        if config.last_dispatched_date == today:
+            return {"status": "skipped", "reason": "already_dispatched_today"}
+
+        now_str = datetime.now().strftime("%H:%M")
+        if now_str < config.reminder_time:
+            return {
+                "status": "pending",
+                "current_time": now_str,
+                "scheduled_time": config.reminder_time,
+            }
+
+    # Fetch active obligations
+    all_obls = obligation_service.get_all_obligations(session, is_active=True)
+    due_obls = [
+        o for o in all_obls
+        if not o.is_paid_this_month and o.days_until_due <= config.reminder_days_ahead
+    ]
+
+    if not due_obls:
+        if not force:
+            config.last_dispatched_date = today
+            session.add(config)
+            session.commit()
+        return {"status": "completed", "due_count": 0, "message": "No obligations due soon"}
+
+    # Construct push message
+    if len(due_obls) == 1:
+        obl = due_obls[0]
+        if obl.days_until_due == 0:
+            title = f"⚡ Payment Due Today: {obl.name}"
+            body = f"{obl.name} (${obl.amount:,.2f}) is due today! Don't forget to pay."
+        elif obl.days_until_due < 0:
+            title = f"⚠️ Overdue Payment: {obl.name}"
+            body = f"{obl.name} (${obl.amount:,.2f}) was due on the {obl.due_day}th."
+        else:
+            title = f"🔔 Upcoming Payment: {obl.name}"
+            days_txt = "tomorrow" if obl.days_until_due == 1 else f"in {obl.days_until_due} days"
+            body = f"{obl.name} (${obl.amount:,.2f}) is due {days_txt} (day {obl.due_day})."
+    else:
+        names = ", ".join(o.name for o in due_obls[:2])
+        if len(due_obls) > 2:
+            names += f" and {len(due_obls) - 2} more"
+        title = f"🔔 {len(due_obls)} Obligations Due Soon"
+        body = f"{names} are due within the next {config.reminder_days_ahead} days."
+
+    result = broadcast_notification(
+        session=session,
+        title=title,
+        body=body,
+        url="/obligations",
+    )
+
+    config.last_dispatched_date = today
+    session.add(config)
+    session.commit()
+
+    return {
+        "status": "dispatched",
+        "due_count": len(due_obls),
+        "title": title,
+        "body": body,
+        **result,
+    }
