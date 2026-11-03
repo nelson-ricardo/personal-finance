@@ -97,6 +97,13 @@ def send_notification(
             }
         )
 
+        headers = {
+            "Urgency": "high",
+            "TTL": "86400",
+            "apns-priority": "10",
+            "apns-push-type": "alert",
+        }
+
         webpush(
             subscription_info={
                 "endpoint": subscription.endpoint,
@@ -108,6 +115,7 @@ def send_notification(
             data=payload,
             vapid_private_key=private_key,
             vapid_claims={"sub": claim_email},
+            headers=headers,
         )
         logger.info(f"Successfully delivered push notification to endpoint {subscription.endpoint[:30]}...")
         return True
