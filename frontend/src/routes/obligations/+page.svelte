@@ -75,9 +75,15 @@
 	let paidCount = $derived(data.obligations.filter((o) => o.is_active && o.is_paid_this_month).length);
 	let totalCount = $derived(data.obligations.filter((o) => o.is_active).length);
 
-	// Filtered obligations for table
+	// Filtered obligations for display
 	let displayedObligations = $derived.by(() => {
 		if (selectedDay === null) return data.obligations;
+		return data.obligations.filter((o) => o.due_day === selectedDay);
+	});
+
+	// Selected day's specific obligations
+	let selectedDayObligations = $derived.by(() => {
+		if (selectedDay === null) return [];
 		return data.obligations.filter((o) => o.due_day === selectedDay);
 	});
 
@@ -256,129 +262,132 @@
 	<title>Obligations & Due Dates — Homeledger</title>
 </svelte:head>
 
-<div class="space-y-6 sm:space-y-8 animate-in fade-in duration-200">
+<div class="space-y-4 sm:space-y-6 animate-in fade-in duration-200">
 	<!-- Page Header & Action Bar -->
-	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-		<div>
-			<div class="flex items-center gap-2">
-				<h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-brand-950 font-serif">
-					Obligations & Due Dates
-				</h1>
+	<div class="flex flex-col gap-3">
+		<div class="flex items-center justify-between">
+			<div class="min-w-0">
+				<div class="flex items-center gap-2">
+					<h1 class="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-brand-950 font-serif truncate">
+						Obligations & Due Dates
+					</h1>
+					<button
+						type="button"
+						onclick={() => (showNotificationModal = true)}
+						class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-brand-100 hover:bg-brand-200 text-brand-800 transition-colors cursor-pointer shrink-0"
+						title="Configure daily push notification timing"
+					>
+						<span>🔔</span>
+						<span class="hidden sm:inline">
+							{data.notificationSettings?.is_enabled
+								? `Daily at ${data.notificationSettings.reminder_time}`
+								: 'Alerts Off'}
+						</span>
+					</button>
+				</div>
+				<p class="text-[11px] sm:text-xs text-brand-600 mt-0.5 truncate">
+					Track upcoming bills, loans, and credit card payments.
+				</p>
+			</div>
+
+			<!-- Mobile & Desktop Top Action Buttons -->
+			<div class="flex items-center gap-1.5 shrink-0">
 				<button
 					type="button"
-					onclick={() => (showNotificationModal = true)}
-					class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-100 hover:bg-brand-200 text-brand-800 transition-colors cursor-pointer"
-					title="Configure daily push notification timing"
+					onclick={handleSyncAccounts}
+					disabled={syncingAccounts}
+					class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-brand-200 bg-white hover:bg-brand-50 text-brand-800 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+					title="Scan Credit Cards and Loans with due dates and auto-populate obligations"
 				>
-					<span>🔔</span>
-					<span class="hidden sm:inline">
-						{data.notificationSettings?.is_enabled
-							? `Daily at ${data.notificationSettings.reminder_time}`
-							: 'Alerts Off'}
-					</span>
+					<span class={syncingAccounts ? 'animate-spin' : ''}>🔄</span>
+					<span class="hidden sm:inline">{syncingAccounts ? 'Syncing...' : 'Sync Accounts'}</span>
+				</button>
+
+				<button
+					type="button"
+					onclick={() => openCreateModal()}
+					class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl bg-brand-500 hover:bg-brand-600 text-white transition-colors shadow-xs cursor-pointer"
+				>
+					<span>+</span>
+					<span class="hidden sm:inline">Add Obligation</span>
+					<span class="sm:hidden">Add</span>
 				</button>
 			</div>
-			<p class="text-xs sm:text-sm text-brand-600 mt-1">
-				Track and plan obligations due by day of the month with automated push notifications.
-			</p>
-		</div>
-
-		<!-- Action Buttons -->
-		<div class="flex items-center gap-2">
-			<button
-				type="button"
-				onclick={handleSyncAccounts}
-				disabled={syncingAccounts}
-				class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-brand-200 bg-white hover:bg-brand-50 text-brand-800 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
-				title="Scan Credit Cards and Loans with due dates and auto-populate obligations"
-			>
-				<span class={syncingAccounts ? 'animate-spin' : ''}>🔄</span>
-				<span>{syncingAccounts ? 'Syncing...' : 'Sync Accounts'}</span>
-			</button>
-
-			<button
-				type="button"
-				onclick={() => openCreateModal()}
-				class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-brand-500 hover:bg-brand-600 text-white transition-colors shadow-xs cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-			>
-				<span>+</span>
-				<span>Add Obligation</span>
-			</button>
 		</div>
 	</div>
 
 	<!-- Sync Feedback Banner -->
 	{#if syncMessage}
 		<div
-			class="p-3 rounded-xl text-xs flex items-center justify-between {syncMessage.type === 'success'
+			class="p-2.5 rounded-xl text-xs flex items-center justify-between {syncMessage.type === 'success'
 				? 'bg-emerald-50 text-emerald-900 border border-emerald-200'
 				: 'bg-rose-50 text-rose-900 border border-rose-200'}"
 		>
-			<span class="font-medium">{syncMessage.text}</span>
+			<span class="font-medium text-[11px] sm:text-xs leading-tight">{syncMessage.text}</span>
 			<button
 				type="button"
 				onclick={() => (syncMessage = null)}
-				class="text-brand-500 hover:text-brand-800 font-bold ml-2 cursor-pointer"
+				class="text-brand-500 hover:text-brand-800 font-bold ml-2 cursor-pointer p-1"
 			>
 				✕
 			</button>
 		</div>
 	{/if}
 
-	<!-- Overview Metrics -->
-	<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+	<!-- Overview Metrics (Optimized for Mobile: 3 columns, clean compact typography) -->
+	<div class="grid grid-cols-3 gap-2 sm:gap-4">
 		<!-- Total Commitments -->
-		<div class="p-4 rounded-2xl bg-white border border-brand-200/80 shadow-2xs space-y-1">
-			<span class="text-xs font-medium text-brand-600">Total Monthly Commitments</span>
-			<div class="text-2xl font-bold font-mono text-brand-950">
-				${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+		<div class="p-2.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-brand-200/80 shadow-2xs space-y-0.5">
+			<span class="text-[10px] sm:text-xs font-medium text-brand-600 block truncate">Total Monthly</span>
+			<div class="text-sm sm:text-2xl font-bold font-mono text-brand-950 truncate">
+				${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
 			</div>
-			<div class="text-[11px] text-brand-500">{totalCount} active obligation(s)</div>
+			<div class="text-[9px] sm:text-[11px] text-brand-500 truncate">{totalCount} bills</div>
 		</div>
 
 		<!-- Remaining Due -->
-		<div class="p-4 rounded-2xl bg-white border border-brand-200/80 shadow-2xs space-y-1">
-			<span class="text-xs font-medium text-amber-700">Remaining to Pay</span>
-			<div class="text-2xl font-bold font-mono text-amber-900">
-				${totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+		<div class="p-2.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-brand-200/80 shadow-2xs space-y-0.5">
+			<span class="text-[10px] sm:text-xs font-medium text-amber-700 block truncate">Remaining</span>
+			<div class="text-sm sm:text-2xl font-bold font-mono text-amber-900 truncate">
+				${totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
 			</div>
-			<div class="text-[11px] text-amber-700">{totalCount - paidCount} pending this month</div>
+			<div class="text-[9px] sm:text-[11px] text-amber-700 truncate">{totalCount - paidCount} pending</div>
 		</div>
 
 		<!-- Paid So Far -->
-		<div class="p-4 rounded-2xl bg-white border border-brand-200/80 shadow-2xs space-y-1">
-			<span class="text-xs font-medium text-emerald-700">Paid for {monthNames[currentMonth]}</span>
-			<div class="text-2xl font-bold font-mono text-emerald-900">
-				${totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+		<div class="p-2.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-brand-200/80 shadow-2xs space-y-0.5">
+			<span class="text-[10px] sm:text-xs font-medium text-emerald-700 block truncate">Paid</span>
+			<div class="text-sm sm:text-2xl font-bold font-mono text-emerald-900 truncate">
+				${totalPaid.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
 			</div>
-			<div class="text-[11px] text-emerald-700">{paidCount} of {totalCount} satisfied</div>
+			<div class="text-[9px] sm:text-[11px] text-emerald-700 truncate">{paidCount} done</div>
 		</div>
 	</div>
 
 	<!-- Monthly Calendar Widget -->
 	<div class="bg-white rounded-2xl border border-brand-200/80 shadow-2xs overflow-hidden">
 		<!-- Calendar Navigation Bar -->
-		<div class="p-4 sm:p-5 border-b border-brand-100 flex items-center justify-between">
-			<div class="flex items-center gap-3">
-				<h2 class="text-base sm:text-lg font-bold text-brand-950 font-serif">
+		<div class="p-3 sm:p-4 border-b border-brand-100 flex items-center justify-between">
+			<div class="flex items-center gap-2 min-w-0">
+				<h2 class="text-sm sm:text-base font-bold text-brand-950 font-serif truncate">
 					{monthNames[currentMonth]} {currentYear}
 				</h2>
 				{#if selectedDay !== null}
 					<button
 						type="button"
 						onclick={() => (selectedDay = null)}
-						class="text-[11px] font-medium text-brand-600 bg-brand-100 hover:bg-brand-200 px-2 py-0.5 rounded-full transition-colors cursor-pointer"
+						class="text-[10px] font-medium text-brand-700 bg-brand-100 hover:bg-brand-200 px-2 py-0.5 rounded-full transition-colors cursor-pointer shrink-0"
 					>
-						Day {selectedDay} selected (Clear)
+						Day {selectedDay} (Clear)
 					</button>
 				{/if}
 			</div>
 
-			<div class="flex items-center gap-1.5">
+			<div class="flex items-center gap-1 shrink-0">
 				<button
 					type="button"
 					onclick={prevMonth}
-					class="p-1.5 rounded-lg border border-brand-200 hover:bg-brand-50 text-brand-700 transition-colors cursor-pointer"
+					class="p-1 sm:p-1.5 rounded-lg border border-brand-200 hover:bg-brand-50 text-brand-700 transition-colors cursor-pointer text-xs"
 					aria-label="Previous Month"
 				>
 					◀
@@ -386,14 +395,14 @@
 				<button
 					type="button"
 					onclick={resetToToday}
-					class="px-2.5 py-1 text-xs font-medium rounded-lg border border-brand-200 hover:bg-brand-50 text-brand-700 transition-colors cursor-pointer"
+					class="px-2 py-1 text-[11px] font-medium rounded-lg border border-brand-200 hover:bg-brand-50 text-brand-700 transition-colors cursor-pointer"
 				>
 					Today
 				</button>
 				<button
 					type="button"
 					onclick={nextMonth}
-					class="p-1.5 rounded-lg border border-brand-200 hover:bg-brand-50 text-brand-700 transition-colors cursor-pointer"
+					class="p-1 sm:p-1.5 rounded-lg border border-brand-200 hover:bg-brand-50 text-brand-700 transition-colors cursor-pointer text-xs"
 					aria-label="Next Month"
 				>
 					▶
@@ -402,21 +411,21 @@
 		</div>
 
 		<!-- Weekday Headers -->
-		<div class="grid grid-cols-7 border-b border-brand-100 bg-brand-50/50 text-center text-[11px] font-semibold text-brand-600 py-2">
-			<div>Sun</div>
-			<div>Mon</div>
-			<div>Tue</div>
-			<div>Wed</div>
-			<div>Thu</div>
-			<div>Fri</div>
-			<div>Sat</div>
+		<div class="grid grid-cols-7 border-b border-brand-100 bg-brand-50/50 text-center text-[10px] sm:text-[11px] font-semibold text-brand-600 py-1.5">
+			<div>Su</div>
+			<div>Mo</div>
+			<div>Tu</div>
+			<div>We</div>
+			<div>Th</div>
+			<div>Fr</div>
+			<div>Sa</div>
 		</div>
 
 		<!-- Calendar Day Grid -->
 		<div class="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-brand-100 border-b border-brand-100">
 			<!-- Padding cells for offset of 1st day -->
 			{#each Array(firstDayWeekday) as _}
-				<div class="min-h-[72px] sm:min-h-[92px] bg-brand-50/30 p-1.5 sm:p-2"></div>
+				<div class="min-h-[46px] sm:min-h-[84px] bg-brand-50/20"></div>
 			{/each}
 
 			<!-- Days of current month -->
@@ -436,22 +445,23 @@
 					onkeydown={(e) => {
 						if (e.key === 'Enter') selectedDay = selectedDay === dayNumber ? null : dayNumber;
 					}}
-					class="min-h-[72px] sm:min-h-[92px] p-1.5 sm:p-2 transition-all cursor-pointer select-none flex flex-col justify-between {isSelected
-						? 'bg-brand-100/90 ring-2 ring-brand-500 ring-inset'
+					class="min-h-[46px] sm:min-h-[84px] p-1 sm:p-2 transition-all cursor-pointer select-none flex flex-col justify-between {isSelected
+						? 'bg-brand-100 ring-2 ring-brand-500 ring-inset'
 						: isToday
 							? 'bg-brand-50/80 font-bold'
 							: 'hover:bg-brand-50/60 bg-white'}"
 				>
 					<!-- Day Number Header -->
-					<div class="flex items-center justify-between">
+					<div class="flex items-center justify-between w-full">
 						<span
-							class="text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center {isToday
+							class="text-[11px] sm:text-xs font-semibold rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center {isToday
 								? 'bg-brand-500 text-white shadow-2xs'
 								: 'text-brand-800'}"
 						>
 							{dayNumber}
 						</span>
 
+						<!-- Desktop Day Total -->
 						{#if dayObls.length > 0}
 							<span class="text-[10px] font-mono text-brand-500 hidden sm:inline">
 								${dayObls
@@ -461,8 +471,27 @@
 						{/if}
 					</div>
 
-					<!-- Obligations Pills Inside Day Cell -->
-					<div class="space-y-1 mt-1 overflow-hidden">
+					<!-- Mobile Indicator: Clean colored dots (prevents squeezing!) -->
+					<div class="sm:hidden flex items-center justify-center gap-0.5 mt-1">
+						{#each dayObls.slice(0, 3) as obl}
+							<span
+								class="w-1.5 h-1.5 rounded-full {obl.is_paid_this_month
+									? 'bg-emerald-500'
+									: obl.is_overdue
+										? 'bg-rose-500'
+										: obl.days_until_due <= 3 && obl.days_until_due >= 0
+											? 'bg-amber-500'
+											: 'bg-brand-400'}"
+								title="{obl.name} (${obl.amount})"
+							></span>
+						{/each}
+						{#if dayObls.length > 3}
+							<span class="text-[8px] text-brand-600 font-bold leading-none">+</span>
+						{/if}
+					</div>
+
+					<!-- Desktop Obligations Pills (visible on sm: and up) -->
+					<div class="hidden sm:block space-y-1 mt-1 overflow-hidden">
 						{#each dayObls as obl}
 							<div
 								class="text-[9px] sm:text-[10px] truncate px-1.5 py-0.5 rounded font-medium border flex items-center justify-between {obl.is_paid_this_month
@@ -472,7 +501,7 @@
 										: obl.days_until_due <= 3 && obl.days_until_due >= 0
 											? 'bg-amber-50 text-amber-900 border-amber-300 font-semibold'
 											: 'bg-brand-100 text-brand-900 border-brand-200'}"
-								title="{obl.name} (${obl.amount}) - {obl.note || 'Due on ' + dayNumber}"
+								title="{obl.name} (${obl.amount}) - {obl.note || 'Due on day ' + dayNumber}"
 							>
 								<span class="truncate">{obl.name}</span>
 								<span class="ml-1 font-mono font-bold shrink-0">
@@ -484,17 +513,61 @@
 				</div>
 			{/each}
 		</div>
+
+		<!-- Mobile Selected Day Quick Strip -->
+		{#if selectedDay !== null && selectedDayObligations.length > 0}
+			<div class="sm:hidden p-3 bg-brand-50/70 border-t border-brand-100 space-y-2">
+				<div class="flex items-center justify-between text-xs font-semibold text-brand-900">
+					<span>Day {selectedDay} Obligations ({selectedDayObligations.length}):</span>
+					<button
+						type="button"
+						onclick={() => openCreateModal(selectedDay || undefined)}
+						class="text-[11px] text-brand-600 font-bold cursor-pointer"
+					>
+						+ Add For Day {selectedDay}
+					</button>
+				</div>
+				<div class="space-y-1.5">
+					{#each selectedDayObligations as obl}
+						<div class="p-2 rounded-xl bg-white border border-brand-200/80 flex items-center justify-between text-xs shadow-2xs">
+							<div class="min-w-0 pr-2">
+								<div class="font-semibold text-brand-900 truncate {obl.is_paid_this_month ? 'line-through text-brand-500' : ''}">
+									{obl.name}
+								</div>
+								<div class="text-[10px] text-brand-500 truncate">
+									{obl.note || 'No notes'}
+								</div>
+							</div>
+							<div class="flex items-center gap-2 shrink-0">
+								<span class="font-mono font-bold text-brand-950">
+									${Number(obl.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+								</span>
+								<button
+									type="button"
+									onclick={() => handleTogglePaid(obl.id, obl.is_paid_this_month)}
+									class="px-2 py-0.5 rounded-full text-[10px] font-semibold border {obl.is_paid_this_month
+										? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+										: 'bg-brand-100 text-brand-700 border-brand-200'}"
+								>
+									{obl.is_paid_this_month ? '✓ Paid' : 'Pay'}
+								</button>
+							</div>
+						</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
 	</div>
 
-	<!-- 4-Column Obligations Table (as requested: Name, Due Date, Amount, Note) -->
-	<div class="bg-white rounded-2xl border border-brand-200/80 shadow-2xs overflow-hidden space-y-0">
-		<div class="p-4 sm:p-5 border-b border-brand-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+	<!-- 4-Column Obligations Section -->
+	<div class="bg-white rounded-2xl border border-brand-200/80 shadow-2xs overflow-hidden">
+		<div class="p-3.5 sm:p-5 border-b border-brand-100 flex items-center justify-between">
 			<div>
-				<h3 class="text-base font-bold text-brand-950 font-serif">
+				<h3 class="text-sm sm:text-base font-bold text-brand-950 font-serif">
 					{selectedDay !== null ? `Obligations Due on Day ${selectedDay}` : 'All Obligations'}
 				</h3>
-				<p class="text-xs text-brand-500">
-					{displayedObligations.length} commitment(s) listed.
+				<p class="text-[11px] sm:text-xs text-brand-500">
+					{displayedObligations.length} commitment(s) • 4 Columns: Name, Due Date, Amount, Note
 				</p>
 			</div>
 
@@ -504,7 +577,7 @@
 					onclick={() => openCreateModal(selectedDay || undefined)}
 					class="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-900 cursor-pointer"
 				>
-					<span>+ Add Obligation for Day {selectedDay}</span>
+					<span>+ Add for Day {selectedDay}</span>
 				</button>
 			{/if}
 		</div>
@@ -512,17 +585,107 @@
 		{#if displayedObligations.length === 0}
 			<div class="p-8 text-center text-brand-500 text-xs">
 				<p class="font-medium text-sm text-brand-800 mb-1">No obligations found.</p>
-				<p>Tap "Add Obligation" or "Sync Accounts" above to track bills and debt payments.</p>
+				<p>Tap "Add Obligation" or "Sync Accounts" to track bills and debt payments.</p>
 			</div>
 		{:else}
-			<div class="overflow-x-auto">
+			<!-- MOBILE VIEW: Apple-Style Cards (Zero horizontal scroll or squeezing) -->
+			<div class="md:hidden divide-y divide-brand-100">
+				{#each displayedObligations as obl (obl.id)}
+					<div class="p-3.5 space-y-2 hover:bg-brand-50/40 transition-colors {obl.is_paid_this_month ? 'opacity-70 bg-brand-50/20' : ''}">
+						<!-- Card Row 1: Name, Icon, and Amount -->
+						<div class="flex items-start justify-between gap-2">
+							<div class="min-w-0">
+								<div class="font-bold text-brand-950 text-sm flex items-center gap-1.5 truncate">
+									<span>{obl.account_type === 'loan' ? '🚗' : obl.account_type === 'credit_card' ? '💳' : '📄'}</span>
+									<span class={obl.is_paid_this_month ? 'line-through text-brand-600' : ''}>{obl.name}</span>
+								</div>
+								{#if obl.account_name}
+									<span class="text-[10px] text-brand-500 font-medium block">
+										Linked Account: {obl.account_name}
+									</span>
+								{/if}
+							</div>
+
+							<!-- Amount -->
+							<div class="font-mono font-bold text-base text-brand-950 shrink-0">
+								${Number(obl.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+							</div>
+						</div>
+
+						<!-- Card Row 2: Due Date & Note -->
+						<div class="flex flex-col gap-1 text-xs bg-brand-50/60 p-2 rounded-xl border border-brand-100">
+							<div class="flex items-center justify-between">
+								<span class="font-medium text-brand-700">Due: <strong>Day {obl.due_day}</strong> of month</span>
+								{#if obl.is_paid_this_month}
+									<span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+										✓ Paid for {monthNames[currentMonth]}
+									</span>
+								{:else if obl.is_overdue}
+									<span class="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+										⚠️ Overdue
+									</span>
+								{:else if obl.days_until_due === 0}
+									<span class="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+										⚡ Due Today
+									</span>
+								{:else if obl.days_until_due <= 3}
+									<span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+										Due in {obl.days_until_due}d
+									</span>
+								{:else}
+									<span class="text-[10px] text-brand-500">In {obl.days_until_due} days</span>
+								{/if}
+							</div>
+
+							{#if obl.note}
+								<div class="text-[11px] text-brand-600 italic border-t border-brand-200/50 pt-1 mt-0.5">
+									{obl.note}
+								</div>
+							{/if}
+						</div>
+
+						<!-- Card Row 3: Action Buttons (Touch Friendly 40px+ heights) -->
+						<div class="flex items-center justify-between pt-1">
+							<button
+								type="button"
+								onclick={() => handleTogglePaid(obl.id, obl.is_paid_this_month)}
+								class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border {obl.is_paid_this_month
+									? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+									: 'bg-brand-500 text-white border-transparent hover:bg-brand-600 shadow-2xs'}"
+							>
+								<span>{obl.is_paid_this_month ? '✓ Paid' : 'Mark as Paid'}</span>
+							</button>
+
+							<div class="flex items-center gap-2">
+								<button
+									type="button"
+									onclick={() => openEditModal(obl)}
+									class="px-2.5 py-1.5 text-xs font-medium text-brand-700 rounded-lg hover:bg-brand-100 border border-brand-200 transition-colors cursor-pointer"
+								>
+									✏️ Edit
+								</button>
+								<button
+									type="button"
+									onclick={() => handleDeleteObligation(obl.id, obl.name)}
+									class="px-2.5 py-1.5 text-xs font-medium text-rose-700 rounded-lg hover:bg-rose-50 border border-rose-200 transition-colors cursor-pointer"
+								>
+									🗑️
+								</button>
+							</div>
+						</div>
+					</div>
+				{/each}
+			</div>
+
+			<!-- DESKTOP VIEW: Full 4-Column Table -->
+			<div class="hidden md:block overflow-x-auto">
 				<table class="w-full text-left border-collapse text-xs">
 					<thead>
 						<tr class="border-b border-brand-100 bg-brand-50/60 text-brand-700 font-semibold uppercase tracking-wider text-[10px]">
-							<th class="py-3 px-4">Name</th>
-							<th class="py-3 px-4">Due Date</th>
-							<th class="py-3 px-4 text-right">Amount</th>
-							<th class="py-3 px-4">Note</th>
+							<th class="py-3 px-4">1. Name</th>
+							<th class="py-3 px-4">2. Due Date</th>
+							<th class="py-3 px-4 text-right">3. Amount</th>
+							<th class="py-3 px-4">4. Note</th>
 							<th class="py-3 px-4 text-center">Status / Paid</th>
 							<th class="py-3 px-4 text-right">Actions</th>
 						</tr>
@@ -533,13 +696,7 @@
 								<!-- 1. Name Column -->
 								<td class="py-3 px-4">
 									<div class="font-semibold text-brand-950 flex items-center gap-1.5">
-										{#if obl.account_id}
-											<span class="text-xs" title="Linked to {obl.account_name}">
-												{obl.account_type === 'loan' ? '🚗' : '💳'}
-											</span>
-										{:else}
-											<span class="text-xs">📄</span>
-										{/if}
+										<span>{obl.account_type === 'loan' ? '🚗' : obl.account_type === 'credit_card' ? '💳' : '📄'}</span>
 										<span class={obl.is_paid_this_month ? 'line-through text-brand-600' : ''}>
 											{obl.name}
 										</span>
@@ -583,7 +740,7 @@
 									</span>
 								</td>
 
-								<!-- Paid Toggle Status -->
+								<!-- Status / Paid Toggle -->
 								<td class="py-3 px-4 text-center">
 									<button
 										type="button"
